@@ -23,7 +23,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.btnHost).setOnClickListener {
-            val intent = Intent(this, HostActivity::class.java)
+            // Updated to navigate to RoomCreationActivity first
+            val intent = Intent(this, RoomCreationActivity::class.java)
             startActivity(intent)
         }
 

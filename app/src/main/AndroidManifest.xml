@@ -27,6 +27,9 @@
         <activity 
             android:name=".PlayerActivity" 
             android:theme="@style/Base.Theme.Tambola"/>
+        <activity 
+            android:name=".RoomCreationActivity" 
+            android:theme="@style/Base.Theme.Tambola"/>
     </application>
 
 </manifest>
