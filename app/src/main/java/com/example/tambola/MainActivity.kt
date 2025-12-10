@@ -23,13 +23,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.btnHost).setOnClickListener {
-            // Updated to navigate to RoomCreationActivity first
             val intent = Intent(this, RoomCreationActivity::class.java)
             startActivity(intent)
         }
 
         findViewById<View>(R.id.btnJoin).setOnClickListener {
-            val intent = Intent(this, PlayerActivity::class.java)
+            // Updated to navigate to RoomJoinActivity
+            val intent = Intent(this, RoomJoinActivity::class.java)
             startActivity(intent)
         }
     }
