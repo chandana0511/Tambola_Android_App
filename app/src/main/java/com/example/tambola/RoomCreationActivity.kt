@@ -6,7 +6,13 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import kotlin.random.Random
 
 class RoomCreationActivity : AppCompatActivity() {
@@ -18,9 +24,15 @@ class RoomCreationActivity : AppCompatActivity() {
     private lateinit var tvPlayerCount: TextView
     private lateinit var btnStartGame: Button
 
+    private lateinit var database: DatabaseReference
+    private var currentRoomCode: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_creation)
+
+        // Initialize Firebase
+        database = FirebaseDatabase.getInstance().reference
 
         btnCreateRoom = findViewById(R.id.btnCreateRoom)
         layoutRoomDetails = findViewById(R.id.layoutRoomDetails)
@@ -39,21 +51,51 @@ class RoomCreationActivity : AppCompatActivity() {
 
         btnStartGame.setOnClickListener {
             val intent = Intent(this, HostActivity::class.java)
+            intent.putExtra("ROOM_CODE", currentRoomCode)
             startActivity(intent)
-            finish() // Optional: Finish this activity so back button doesn't come back here
+            finish()
         }
     }
 
     private fun createRoom() {
-        // Generate a random 6-digit code
         val roomCode = Random.nextInt(100000, 999999).toString()
+        currentRoomCode = roomCode
         
-        tvRoomCode.text = roomCode
-        tvPlayerCount.text = "Players Joined: 0" // Initial count
+        // Save room to Firebase
+        val roomData = mapOf(
+            "status" to "waiting", // waiting, active, finished
+            "hostId" to "host_device_id", // In real app, use unique ID
+            "players" to mapOf<String, Boolean>() // Empty player list
+        )
+        
+        database.child("rooms").child(roomCode).setValue(roomData)
+            .addOnSuccessListener {
+                tvRoomCode.text = roomCode
+                
+                // Update UI visibility
+                btnCreateRoom.visibility = View.GONE
+                layoutRoomDetails.visibility = View.VISIBLE
+                
+                // Listen for player joins
+                listenForPlayers(roomCode)
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Failed to create room: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
 
-        // Update UI visibility
-        btnCreateRoom.visibility = View.GONE
-        layoutRoomDetails.visibility = View.VISIBLE
+    private fun listenForPlayers(roomCode: String) {
+        database.child("rooms").child(roomCode).child("players")
+            .addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    tvPlayerCount.text = "Players Joined: $count"
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Toast.makeText(this@RoomCreationActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
     }
 
     private fun shareRoomCode() {

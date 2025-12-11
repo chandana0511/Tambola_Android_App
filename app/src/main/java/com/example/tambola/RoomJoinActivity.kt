@@ -9,15 +9,22 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 
 class RoomJoinActivity : AppCompatActivity() {
 
     private val editTexts =  arrayOfNulls<EditText>(6)
+    private lateinit var database: DatabaseReference
+    private lateinit var tvError: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_join)
+
+        database = FirebaseDatabase.getInstance().reference
 
         editTexts[0] = findViewById(R.id.etDigit1)
         editTexts[1] = findViewById(R.id.etDigit2)
@@ -27,24 +34,56 @@ class RoomJoinActivity : AppCompatActivity() {
         editTexts[5] = findViewById(R.id.etDigit6)
 
         val btnJoinGame = findViewById<Button>(R.id.btnJoinGame)
-        val tvError = findViewById<TextView>(R.id.tvError)
+        tvError = findViewById(R.id.tvError)
 
         setupOtpInputs()
 
         btnJoinGame.setOnClickListener {
             val code = getEnteredCode()
             if (code.length == 6) {
-                // TODO: Validate code with Host (SharedPref/Firebase/Network)
-                // For now, any 6 digit code allows entry
-                tvError.visibility = View.GONE
-                val intent = Intent(this, PlayerActivity::class.java)
-                startActivity(intent)
-                finish()
+                validateAndJoinRoom(code)
             } else {
                 tvError.text = "Please enter a complete 6-digit code"
                 tvError.visibility = View.VISIBLE
             }
         }
+    }
+
+    private fun validateAndJoinRoom(code: String) {
+        // Use get() to fetch the data once and check for existence
+        database.child("rooms").child(code).get().addOnSuccessListener { snapshot ->
+            if (snapshot.exists()) {
+                // Room exists, join it
+                joinRoom(code)
+            } else {
+                tvError.text = "Invalid Room Code. Please check and try again."
+                tvError.visibility = View.VISIBLE
+            }
+        }.addOnFailureListener {
+            tvError.text = "Network Error. Please try again."
+            tvError.visibility = View.VISIBLE
+            Toast.makeText(this@RoomJoinActivity, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun joinRoom(code: String) {
+        // Generate a temporary player ID (or use device ID/Auth ID in real app)
+        val playerId = database.push().key ?: return
+        
+        database.child("rooms").child(code).child("players").child(playerId).setValue(true)
+            .addOnSuccessListener {
+                tvError.visibility = View.GONE
+                val intent = Intent(this@RoomJoinActivity, PlayerActivity::class.java)
+                intent.putExtra("ROOM_CODE", code)
+                intent.putExtra("PLAYER_ID", playerId)
+                startActivity(intent)
+                finish()
+            }
+            .addOnFailureListener {
+                tvError.text = "Failed to join room."
+                tvError.visibility = View.VISIBLE
+                Toast.makeText(this@RoomJoinActivity, "Failed to join: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun setupOtpInputs() {
