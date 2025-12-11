@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import kotlin.random.Random
 
 class HostActivity : AppCompatActivity() {
@@ -12,10 +14,16 @@ class HostActivity : AppCompatActivity() {
     private lateinit var tvCurrentNumber: TextView
     private lateinit var tvHistory: TextView
     private lateinit var btnCallNumber: Button
+    
+    private lateinit var database: DatabaseReference
+    private var roomCode: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_host)
+
+        roomCode = intent.getStringExtra("ROOM_CODE")
+        database = FirebaseDatabase.getInstance().reference
 
         tvCurrentNumber = findViewById(R.id.tvCurrentNumber)
         tvHistory = findViewById(R.id.tvHistory)
@@ -34,9 +42,18 @@ class HostActivity : AppCompatActivity() {
             
             tvCurrentNumber.text = number.toString()
             updateHistory()
+            
+            // Push number to Firebase
+            roomCode?.let { code ->
+                database.child("rooms").child(code).child("currentNumber").setValue(number)
+                database.child("rooms").child(code).child("calledNumbers").push().setValue(number)
+            }
         } else {
             tvCurrentNumber.text = "Done"
             btnCallNumber.isEnabled = false
+            roomCode?.let { code ->
+                database.child("rooms").child(code).child("status").setValue("finished")
+            }
         }
     }
 

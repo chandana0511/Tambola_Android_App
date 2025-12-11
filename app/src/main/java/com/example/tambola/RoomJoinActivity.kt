@@ -11,6 +11,7 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 
@@ -50,11 +51,20 @@ class RoomJoinActivity : AppCompatActivity() {
     }
 
     private fun validateAndJoinRoom(code: String) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Toast.makeText(this, "User not authenticated. Please log in.", Toast.LENGTH_SHORT).show()
+            val intent = Intent(this, AuthActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            return
+        }
+
         // Use get() to fetch the data once and check for existence
         database.child("rooms").child(code).get().addOnSuccessListener { snapshot ->
             if (snapshot.exists()) {
                 // Room exists, join it
-                joinRoom(code)
+                joinRoom(code, userId)
             } else {
                 tvError.text = "Invalid Room Code. Please check and try again."
                 tvError.visibility = View.VISIBLE
@@ -66,16 +76,14 @@ class RoomJoinActivity : AppCompatActivity() {
         }
     }
 
-    private fun joinRoom(code: String) {
-        // Generate a temporary player ID (or use device ID/Auth ID in real app)
-        val playerId = database.push().key ?: return
-        
-        database.child("rooms").child(code).child("players").child(playerId).setValue(true)
+    private fun joinRoom(code: String, userId: String) {
+        // Use the Authenticated User ID as the Player ID
+        database.child("rooms").child(code).child("players").child(userId).setValue(true)
             .addOnSuccessListener {
                 tvError.visibility = View.GONE
                 val intent = Intent(this@RoomJoinActivity, PlayerActivity::class.java)
                 intent.putExtra("ROOM_CODE", code)
-                intent.putExtra("PLAYER_ID", playerId)
+                intent.putExtra("PLAYER_ID", userId)
                 startActivity(intent)
                 finish()
             }

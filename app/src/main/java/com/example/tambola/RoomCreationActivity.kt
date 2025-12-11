@@ -8,6 +8,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -58,14 +59,22 @@ class RoomCreationActivity : AppCompatActivity() {
     }
 
     private fun createRoom() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Toast.makeText(this, "User not authenticated", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
         val roomCode = Random.nextInt(100000, 999999).toString()
         currentRoomCode = roomCode
         
         // Save room to Firebase
         val roomData = mapOf(
             "status" to "waiting", // waiting, active, finished
-            "hostId" to "host_device_id", // In real app, use unique ID
-            "players" to mapOf<String, Boolean>() // Empty player list
+            "hostId" to userId,
+            "currentNumber" to 0
+            // "players" will be a sub-node added as they join
         )
         
         database.child("rooms").child(roomCode).setValue(roomData)
