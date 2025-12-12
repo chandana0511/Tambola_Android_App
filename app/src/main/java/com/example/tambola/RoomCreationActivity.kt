@@ -2,12 +2,14 @@ package com.example.tambola
 
 import android.content.Intent
 import android.os.Bundle
+//import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+//import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -28,12 +30,26 @@ class RoomCreationActivity : AppCompatActivity() {
     private lateinit var database: DatabaseReference
     private var currentRoomCode: String? = null
 
+//    companion object {
+//        private const val TAG = "RoomCreationActivity"
+//    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_creation)
 
         // Initialize Firebase
         database = FirebaseDatabase.getInstance().reference
+
+        // Log Firebase Configuration
+//        try {
+//            val options = FirebaseApp.getInstance().options
+//            Log.d(TAG, "Firebase Config - Project ID: ${options.projectId}")
+//            Log.d(TAG, "Firebase Config - Database URL: ${options.databaseUrl}")
+//            Log.d(TAG, "Firebase Config - Application ID: ${options.applicationId}")
+//        } catch (e: Exception) {
+//            Log.e(TAG, "Error reading Firebase options", e)
+//        }
 
         btnCreateRoom = findViewById(R.id.btnCreateRoom)
         layoutRoomDetails = findViewById(R.id.layoutRoomDetails)
@@ -76,9 +92,12 @@ class RoomCreationActivity : AppCompatActivity() {
             "currentNumber" to 0
             // "players" will be a sub-node added as they join
         )
+
+        //Log.d(TAG, "Creating room with code: $roomCode")
         
         database.child("rooms").child(roomCode).setValue(roomData)
             .addOnSuccessListener {
+                //Log.d(TAG, "Room created successfully in Firebase")
                 tvRoomCode.text = roomCode
                 
                 // Update UI visibility
@@ -88,20 +107,24 @@ class RoomCreationActivity : AppCompatActivity() {
                 // Listen for player joins
                 listenForPlayers(roomCode)
             }
-            .addOnFailureListener {
-                Toast.makeText(this, "Failed to create room: ${it.message}", Toast.LENGTH_SHORT).show()
+            .addOnFailureListener { e ->
+                //Log.e(TAG, "Failed to create room", e)
+                Toast.makeText(this, "Failed to create room: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
     private fun listenForPlayers(roomCode: String) {
+       // Log.d(TAG, "Listening for players in room: $roomCode")
         database.child("rooms").child(roomCode).child("players")
             .addValueEventListener(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val count = snapshot.childrenCount
+                  //  Log.d(TAG, "Players updated. Count: $count")
                     tvPlayerCount.text = "Players Joined: $count"
                 }
 
                 override fun onCancelled(error: DatabaseError) {
+                   // Log.e(TAG, "Database error while listening for players", error.toException())
                     Toast.makeText(this@RoomCreationActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
                 }
             })

@@ -79,6 +79,11 @@ class AuthActivity : AppCompatActivity() {
             return
         }
 
+        if (!email.endsWith("@blauplug.com", ignoreCase = true)) {
+            Toast.makeText(this, "Only Blauplug employees are allowed", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         if (password.length < 6) {
             Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
             return

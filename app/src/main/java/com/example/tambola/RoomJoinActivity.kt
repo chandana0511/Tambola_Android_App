@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
@@ -20,6 +21,10 @@ class RoomJoinActivity : AppCompatActivity() {
     private val editTexts =  arrayOfNulls<EditText>(6)
     private lateinit var database: DatabaseReference
     private lateinit var tvError: TextView
+
+//    companion object {
+//        private const val TAG = "RoomJoinActivity"
+//    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,9 +46,11 @@ class RoomJoinActivity : AppCompatActivity() {
 
         btnJoinGame.setOnClickListener {
             val code = getEnteredCode()
+            //Log.d(TAG, "Attempting to join room with code: $code")
             if (code.length == 6) {
                 validateAndJoinRoom(code)
             } else {
+                //Log.w(TAG, "Incomplete code entered: $code")
                 tvError.text = "Please enter a complete 6-digit code"
                 tvError.visibility = View.VISIBLE
             }
@@ -53,6 +60,7 @@ class RoomJoinActivity : AppCompatActivity() {
     private fun validateAndJoinRoom(code: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid
         if (userId == null) {
+            //Log.e(TAG, "User not authenticated")
             Toast.makeText(this, "User not authenticated. Please log in.", Toast.LENGTH_SHORT).show()
             val intent = Intent(this, AuthActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -60,16 +68,20 @@ class RoomJoinActivity : AppCompatActivity() {
             return
         }
 
+        //Log.d(TAG, "Checking if room $code exists...")
         // Use get() to fetch the data once and check for existence
         database.child("rooms").child(code).get().addOnSuccessListener { snapshot ->
             if (snapshot.exists()) {
+                //Log.d(TAG, "Room $code exists. Joining...")
                 // Room exists, join it
                 joinRoom(code, userId)
             } else {
+                //Log.w(TAG, "Room $code does not exist")
                 tvError.text = "Invalid Room Code. Please check and try again."
                 tvError.visibility = View.VISIBLE
             }
         }.addOnFailureListener {
+            //Log.e(TAG, "Network error checking room existence", it)
             tvError.text = "Network Error. Please try again."
             tvError.visibility = View.VISIBLE
             Toast.makeText(this@RoomJoinActivity, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
@@ -77,9 +89,11 @@ class RoomJoinActivity : AppCompatActivity() {
     }
 
     private fun joinRoom(code: String, userId: String) {
+        //Log.d(TAG, "Adding player $userId to room $code")
         // Use the Authenticated User ID as the Player ID
         database.child("rooms").child(code).child("players").child(userId).setValue(true)
             .addOnSuccessListener {
+                //Log.d(TAG, "Successfully joined room $code")
                 tvError.visibility = View.GONE
                 val intent = Intent(this@RoomJoinActivity, PlayerActivity::class.java)
                 intent.putExtra("ROOM_CODE", code)
@@ -88,6 +102,7 @@ class RoomJoinActivity : AppCompatActivity() {
                 finish()
             }
             .addOnFailureListener {
+                //Log.e(TAG, "Failed to write player data to Firebase", it)
                 tvError.text = "Failed to join room."
                 tvError.visibility = View.VISIBLE
                 Toast.makeText(this@RoomJoinActivity, "Failed to join: ${it.message}", Toast.LENGTH_SHORT).show()
