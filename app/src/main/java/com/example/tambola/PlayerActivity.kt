@@ -77,59 +77,56 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------
-    //  STRICT TAMBOLA TICKET GENERATOR (OPTION B)
+    //  STRICT TAMBOLA TICKET GENERATOR
     // ------------------------------------------------------------
     private fun generateTicket(): Array<IntArray> {
-
         val ticket = Array(3) { IntArray(9) { 0 } }
+        val mask = Array(3) { BooleanArray(9) { false } }
 
-        // Step 1: Column counts (each must have 1–3 numbers, total = 15)
-        val colCounts = IntArray(9) { 1 }       // guarantee no column is empty
-        var remaining = 15 - 9                  // 15 total numbers − 1 per column
-
-        while (remaining > 0) {
-            val col = Random.nextInt(0, 9)
-            if (colCounts[col] < 3) {
-                colCounts[col]++
-                remaining--
+        // Retry until we get a valid mask (rules: 5 per row, at least 1 per col)
+        while (true) {
+            // Reset mask
+            for (r in 0 until 3) {
+                mask[r].fill(false)
             }
+
+            // Fill each row with exactly 5 numbers
+            for (r in 0 until 3) {
+                val cols = (0 until 9).toMutableList()
+                cols.shuffle()
+                for (i in 0 until 5) {
+                    mask[r][cols[i]] = true
+                }
+            }
+
+            // Check if every column has at least one number
+            var valid = true
+            for (c in 0 until 9) {
+                if (!mask[0][c] && !mask[1][c] && !mask[2][c]) {
+                    valid = false
+                    break
+                }
+            }
+            if (valid) break
         }
 
-        // Step 2: Assign selected columns to rows while ensuring exactly 5 numbers per row
-        val rowCounts = IntArray(3) { 0 }
-        val cellAssignment = Array(3) { BooleanArray(9) { false } }
-
+        // Fill numbers
         for (col in 0 until 9) {
-            val needed = colCounts[col]
-
-            val availableRows = mutableListOf<Int>()
-            for (r in 0 until 3) if (rowCounts[r] < 5) availableRows.add(r)
-
-            availableRows.shuffle()
-
-            val chosenRows = availableRows.take(needed)
-
-            for (r in chosenRows) {
-                cellAssignment[r][col] = true
-                rowCounts[r]++
-            }
-        }
-
-        // Step 3: Generate actual numbers for each column
-        for (col in 0 until 9) {
-
             val start = if (col == 0) 1 else col * 10
             val end = if (col == 8) 90 else (col * 10) + 9
+            var count = 0
+            for (r in 0 until 3) {
+                if (mask[r][col]) count++
+            }
 
-            val available = (start..end).toMutableList()
-            available.shuffle()
-
-            val selectedNumbers = available.take(colCounts[col]).sorted()
+            val availableNumbers = (start..end).toMutableList()
+            availableNumbers.shuffle()
+            val selected = availableNumbers.take(count).sorted()
 
             var idx = 0
             for (r in 0 until 3) {
-                if (cellAssignment[r][col]) {
-                    ticket[r][col] = selectedNumbers[idx++]
+                if (mask[r][col]) {
+                    ticket[r][col] = selected[idx++]
                 }
             }
         }
