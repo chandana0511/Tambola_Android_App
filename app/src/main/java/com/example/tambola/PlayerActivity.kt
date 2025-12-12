@@ -22,6 +22,7 @@ class PlayerActivity : AppCompatActivity() {
     private var roomCode: String? = null
     private var playerId: String? = null
     private lateinit var tvLastCalledNumber: TextView
+    private lateinit var tvPlayerCurrentNumber: TextView
     private val markedNumbers = mutableSetOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,6 +34,7 @@ class PlayerActivity : AppCompatActivity() {
         database = FirebaseDatabase.getInstance().reference
 
         tvLastCalledNumber = findViewById(R.id.tvLastCalledNumber)
+        tvPlayerCurrentNumber = findViewById(R.id.tvPlayerCurrentNumber)
         val btnClaimLine1 = findViewById<MaterialButton>(R.id.btnClaimLine1)
         val btnClaimFullHouse = findViewById<MaterialButton>(R.id.btnClaimFullHouse)
         val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
@@ -66,6 +68,7 @@ class PlayerActivity : AppCompatActivity() {
                         val number = snapshot.getValue(Int::class.java)
                         if (number != null) {
                             tvLastCalledNumber.text = "Last Called: $number"
+                            tvPlayerCurrentNumber.text = number.toString()
                         }
                     }
 
