@@ -2,12 +2,33 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFF</color>
-    <color name="background_soft">#FAF5F5</color> <!-- Cool gray-blue -->
-    <color name="primary_teal">#2196F3</color>
-    <color name="secondary_orange">#ED8936</color>
-    <color name="text_dark">#2D3748</color>
-    <color name="text_light">#161414</color>
-    <color name="card_bg">#FFFFFF</color>
-    <color name="highlight_green">#C6F6D5</color>
-    <color name="dark_grey">#181818</color>
+
+    <!-- Modern Professional Palette -->
+    <color name="primary">#2563EB</color> <!-- Royal Blue -->
+    <color name="primary_variant">#1E40AF</color> <!-- Darker Blue -->
+    <color name="secondary">#F59E0B</color> <!-- Amber/Gold -->
+    <color name="secondary_variant">#D97706</color>
+
+    <color name="background_page">#F3F4F6</color> <!-- Light Grey -->
+    <color name="surface_card">#FFFFFF</color>
+
+    <color name="text_primary">#1F2937</color> <!-- Dark Grey -->
+    <color name="text_secondary">#6B7280</color> <!-- Medium Grey -->
+    <color name="text_hint">#9CA3AF</color>
+    <color name="text_on_primary">#FFFFFF</color>
+
+    <color name="success">#10B981</color>
+    <color name="error">#EF4444</color>
+    <color name="warning">#F59E0B</color>
+
+    <color name="divider">#E5E7EB</color>
+
+    <!-- Legacy compatibility mappings to prevent other files from breaking if they still use old names -->
+    <color name="background_soft">@color/background_page</color>
+    <color name="primary_teal">@color/primary</color>
+    <color name="secondary_orange">@color/secondary</color>
+    <color name="text_dark">@color/text_primary</color>
+    <color name="card_bg">@color/surface_card</color>
+    <color name="dark_grey">@color/text_primary</color>
+    <color name="highlight_green">@color/success</color>
 </resources>

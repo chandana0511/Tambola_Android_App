@@ -2,6 +2,7 @@ package com.example.tambola
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -34,9 +35,16 @@ class RoomCreationActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_creation)
 
-        // Initialize Firebase
-        database = FirebaseDatabase.getInstance().reference
+        // 1. Initialize Firebase with the explicit Asia-Southeast URL
+        // We use .reference to get the root DatabaseReference
+        try {
+            database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
+        } catch (e: Exception) {
+            Log.e("FirebaseInit", "Error initializing database: ${e.message}")
+            Toast.makeText(this, "Database Error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
 
+        // 2. Initialize Views
         btnCreateRoom = findViewById(R.id.btnCreateRoom)
         layoutRoomDetails = findViewById(R.id.layoutRoomDetails)
         tvRoomCode = findViewById(R.id.tvRoomCode)
@@ -74,12 +82,7 @@ class RoomCreationActivity : AppCompatActivity() {
         val currentUser = FirebaseAuth.getInstance().currentUser
         val email = currentUser?.email ?: "User"
 
-        // Add user email as a disabled item (header)
-        popup.menu.add(0, 0, 0, email).apply {
-            isEnabled = false
-        }
-
-        // Add Logout option
+        popup.menu.add(0, 0, 0, email).apply { isEnabled = false }
         popup.menu.add(0, 1, 1, "Logout")
 
         popup.setOnMenuItemClickListener { item ->
@@ -111,27 +114,32 @@ class RoomCreationActivity : AppCompatActivity() {
 
         val roomCode = Random.nextInt(100000, 999999).toString()
         currentRoomCode = roomCode
-        
-        // Save room to Firebase
+
+        // Prepare data
         val roomData = mapOf(
-            "status" to "waiting", // waiting, active, finished
+            "status" to "waiting",
             "hostId" to userId,
-            "currentNumber" to 0
+            "timestamp" to System.currentTimeMillis()
         )
-        
+
+        Log.d("FirebaseCheck", "Attempting to write to: rooms/$roomCode")
+
+        // 3. Write to Database
         database.child("rooms").child(roomCode).setValue(roomData)
             .addOnSuccessListener {
+                // SUCCESS LOGIC
+                Log.d("FirebaseCheck", "SUCCESS! Room created at rooms/$roomCode")
+
                 tvRoomCode.text = roomCode
-                
-                // Update UI visibility
                 btnCreateRoom.visibility = View.GONE
                 layoutRoomDetails.visibility = View.VISIBLE
-                
-                // Listen for player joins
+
                 listenForPlayers(roomCode)
             }
             .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to create room: ${e.message}", Toast.LENGTH_SHORT).show()
+                // FAILURE LOGIC
+                Log.e("FirebaseCheck", "FAILURE: ${e.message}")
+                Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
     }
 
@@ -144,16 +152,16 @@ class RoomCreationActivity : AppCompatActivity() {
                 }
 
                 override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@RoomCreationActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
+                    Log.e("FirebaseCheck", "Listener Cancelled: ${error.message}")
                 }
             })
     }
 
     private fun shareRoomCode() {
-        val roomCode = tvRoomCode.text.toString()
+        val code = tvRoomCode.text.toString()
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, "Join my Tambola game! Room Code: $roomCode")
+            putExtra(Intent.EXTRA_TEXT, "Join my Tambola game! Room Code: $code")
         }
         startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
     }

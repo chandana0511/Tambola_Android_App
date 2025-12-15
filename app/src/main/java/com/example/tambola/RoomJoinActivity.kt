@@ -27,7 +27,11 @@ class RoomJoinActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_join)
 
-        database = FirebaseDatabase.getInstance().reference
+        //database = FirebaseDatabase.getInstance().reference
+        // Explicitly tell the app to look at your Asia Southeast server
+        database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
+        val myRef = database.child("rooms")
+
 
         editTexts[0] = findViewById(R.id.etDigit1)
         editTexts[1] = findViewById(R.id.etDigit2)

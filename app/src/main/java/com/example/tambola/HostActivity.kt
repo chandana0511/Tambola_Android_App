@@ -29,7 +29,10 @@ class HostActivity : AppCompatActivity() {
         setContentView(R.layout.activity_host)
 
         roomCode = intent.getStringExtra("ROOM_CODE")
-        database = FirebaseDatabase.getInstance().reference
+        //database = FirebaseDatabase.getInstance().reference
+        // Use the specific Asia-Southeast URL
+        database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
+
 
         tvCurrentNumber = findViewById(R.id.tvCurrentNumber)
         btnCallNumber = findViewById(R.id.btnCallNumber)
@@ -79,11 +82,16 @@ class HostActivity : AppCompatActivity() {
         }
     }
 
+//    private fun endGame() {
+//        roomCode?.let { code ->
+//            // Remove room from Firebase to "expire" it
+//            database.child("rooms").child(code).removeValue()
+//        }
     private fun endGame() {
         roomCode?.let { code ->
-            // Remove room from Firebase to "expire" it
-            database.child("rooms").child(code).removeValue()
+            // DON'T delete it. Just mark it as finished so players know it's over.
+            database.child("rooms").child(code).child("status").setValue("finished")
         }
-        finish()
+    finish()
     }
 }
