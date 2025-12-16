@@ -30,9 +30,7 @@ class RoomJoinActivity : AppCompatActivity() {
         //database = FirebaseDatabase.getInstance().reference
         // Explicitly tell the app to look at your Asia Southeast server
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
-        val myRef = database.child("rooms")
-
-
+        
         editTexts[0] = findViewById(R.id.etDigit1)
         editTexts[1] = findViewById(R.id.etDigit2)
         editTexts[2] = findViewById(R.id.etDigit3)
@@ -97,7 +95,8 @@ class RoomJoinActivity : AppCompatActivity() {
     }
 
     private fun validateAndJoinRoom(code: String) {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        val userId = currentUser?.uid
         if (userId == null) {
             Toast.makeText(this, "User not authenticated. Please log in.", Toast.LENGTH_SHORT).show()
             val intent = Intent(this, AuthActivity::class.java)
@@ -106,9 +105,17 @@ class RoomJoinActivity : AppCompatActivity() {
             return
         }
 
+        // Extract prefix from email
+        val email = currentUser?.email
+        val displayName = if (!email.isNullOrEmpty() && email.contains("@")) {
+            email.substringBefore("@")
+        } else {
+            userId 
+        }
+
         database.child("rooms").child(code).get().addOnSuccessListener { snapshot ->
             if (snapshot.exists()) {
-                joinRoom(code, userId)
+                joinRoom(code, userId, displayName)
             } else {
                 tvError.text = "Invalid Room Code. Please check and try again."
                 tvError.visibility = View.VISIBLE
@@ -120,13 +127,13 @@ class RoomJoinActivity : AppCompatActivity() {
         }
     }
 
-    private fun joinRoom(code: String, userId: String) {
+    private fun joinRoom(code: String, userId: String, displayName: String) {
         database.child("rooms").child(code).child("players").child(userId).setValue(true)
             .addOnSuccessListener {
                 tvError.visibility = View.GONE
                 val intent = Intent(this@RoomJoinActivity, PlayerActivity::class.java)
                 intent.putExtra("ROOM_CODE", code)
-                intent.putExtra("PLAYER_ID", userId)
+                intent.putExtra("PLAYER_ID", displayName) // Pass display name instead of raw UID
                 startActivity(intent)
                 finish()
             }
