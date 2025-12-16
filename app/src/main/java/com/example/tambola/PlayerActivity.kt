@@ -1,6 +1,9 @@
 package com.example.tambola
 
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -15,6 +18,8 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
 import kotlin.random.Random
 
@@ -196,18 +201,25 @@ class PlayerActivity : AppCompatActivity() {
              // Success: In a real app, notify the server/host
              roomCode?.let { code ->
                  val claimRef = database.child("rooms").child(code).child("claims").child(claimName)
-                 claimRef.addListenerForSingleValueEvent(object : ValueEventListener {
-                     override fun onDataChange(snapshot: DataSnapshot) {
-                         if (snapshot.exists()) {
-                             Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
-                         } else {
-                             claimRef.setValue(playerId ?: "Unknown").addOnSuccessListener {
-                                 Toast.makeText(this@PlayerActivity, "Valid $claimName! You win $points points.", Toast.LENGTH_LONG).show()
-                             }
+                 claimRef.runTransaction(object : Transaction.Handler {
+                     override fun doTransaction(currentData: MutableData): Transaction.Result {
+                         if (currentData.value == null) {
+                             currentData.value = playerId ?: "Unknown"
+                             return Transaction.success(currentData)
                          }
+                         return Transaction.abort()
                      }
-                     override fun onCancelled(error: DatabaseError) {
-                         // Error
+
+                     override fun onComplete(
+                         error: DatabaseError?,
+                         committed: Boolean,
+                         currentData: DataSnapshot?
+                     ) {
+                         if (committed) {
+                             Toast.makeText(this@PlayerActivity, "Valid $claimName! You win $points points.", Toast.LENGTH_LONG).show()
+                         } else {
+                             Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
+                         }
                      }
                  })
              }
@@ -337,6 +349,7 @@ class PlayerActivity : AppCompatActivity() {
     // ------------------------------------------------------------
     private fun displayTicket(ticket: Array<IntArray>, grid: GridLayout) {
         grid.removeAllViews()
+        grid.setBackgroundColor(Color.TRANSPARENT)
 
         for (row in 0 until 3) {
             for (col in 0 until 9) {
@@ -349,44 +362,75 @@ class PlayerActivity : AppCompatActivity() {
                     height = GridLayout.LayoutParams.WRAP_CONTENT
                     columnSpec = GridLayout.spec(col, 1f)
                     rowSpec = GridLayout.spec(row)
-                    setMargins(4, 4, 4, 4)
+                    setMargins(6, 6, 6, 6)
                 }
 
                 tv.layoutParams = params
                 tv.gravity = Gravity.CENTER
-                tv.setPadding(8, 32, 8, 32)
-                tv.textSize = 18f
+                tv.setPadding(4, 28, 4, 28)
+                tv.textSize = 20f
+                tv.typeface = Typeface.DEFAULT_BOLD
 
                 if (value != 0) {
                     tv.text = value.toString()
-                    tv.setBackgroundColor(Color.parseColor("#E2E8F0"))
-                    tv.setTextColor(Color.BLACK)
+                    styleNumberCell(tv, markedNumbers.contains(value))
 
                     tv.setOnClickListener {
                         if (tv.tag == "marked") {
-                            tv.setBackgroundColor(Color.parseColor("#E2E8F0"))
-                            tv.setTextColor(Color.BLACK)
                             tv.tag = null
                             markedNumbers.remove(value)
+                            styleNumberCell(tv, false)
                         } else {
                             if (!calledNumbers.contains(value)) {
                                 Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
                             } else {
-                                tv.setBackgroundColor(Color.parseColor("#68D391"))
-                                tv.setTextColor(Color.WHITE)
                                 tv.tag = "marked"
                                 markedNumbers.add(value)
+                                styleNumberCell(tv, true)
                             }
                         }
                     }
 
                 } else {
                     tv.text = ""
-                    tv.setBackgroundColor(Color.TRANSPARENT)
+                    styleEmptyCell(tv)
                 }
 
                 grid.addView(tv)
             }
+        }
+    }
+
+    private fun styleNumberCell(tv: TextView, marked: Boolean) {
+        val drawable = GradientDrawable()
+        drawable.shape = GradientDrawable.RECTANGLE
+        drawable.cornerRadius = 16f
+        
+        if (marked) {
+            drawable.setColor(Color.parseColor("#4CAF50")) // Green
+            drawable.setStroke(2, Color.parseColor("#388E3C"))
+            tv.setTextColor(Color.WHITE)
+        } else {
+            drawable.setColor(Color.WHITE)
+            drawable.setStroke(2, Color.parseColor("#BDBDBD")) // Grey
+            tv.setTextColor(Color.BLACK)
+        }
+        
+        tv.background = drawable
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            tv.elevation = if (marked) 2f else 6f
+        }
+    }
+
+    private fun styleEmptyCell(tv: TextView) {
+        val drawable = GradientDrawable()
+        drawable.shape = GradientDrawable.RECTANGLE
+        drawable.cornerRadius = 16f
+        drawable.setColor(Color.parseColor("#E0E0E0")) // Block color
+        
+        tv.background = drawable
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            tv.elevation = 0f
         }
     }
 }
