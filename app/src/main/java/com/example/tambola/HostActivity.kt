@@ -3,11 +3,15 @@ package com.example.tambola
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import kotlin.random.Random
 
 class HostActivity : AppCompatActivity() {
@@ -23,13 +27,15 @@ class HostActivity : AppCompatActivity() {
     
     private lateinit var database: DatabaseReference
     private var roomCode: String? = null
+    
+    // Track winners
+    private val winnersList = mutableMapOf<String, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_host)
 
         roomCode = intent.getStringExtra("ROOM_CODE")
-        //database = FirebaseDatabase.getInstance().reference
         // Use the specific Asia-Southeast URL
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
 
@@ -40,6 +46,7 @@ class HostActivity : AppCompatActivity() {
         rvNumbers = findViewById(R.id.rvNumbers)
 
         setupRecyclerView()
+        listenForClaims()
 
         btnCallNumber.setOnClickListener {
             callNextNumber()
@@ -47,6 +54,28 @@ class HostActivity : AppCompatActivity() {
 
         btnEndGame.setOnClickListener {
             endGame()
+        }
+    }
+    
+    private fun listenForClaims() {
+        roomCode?.let { code ->
+            database.child("rooms").child(code).child("claims")
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        winnersList.clear()
+                        for (child in snapshot.children) {
+                            val claimType = child.key
+                            val winnerId = child.value.toString()
+                            if (claimType != null) {
+                                winnersList[claimType] = winnerId
+                            }
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {
+                        // Handle error
+                    }
+                })
         }
     }
 
@@ -82,16 +111,30 @@ class HostActivity : AppCompatActivity() {
         }
     }
 
-//    private fun endGame() {
-//        roomCode?.let { code ->
-//            // Remove room from Firebase to "expire" it
-//            database.child("rooms").child(code).removeValue()
-//        }
     private fun endGame() {
         roomCode?.let { code ->
-            // DON'T delete it. Just mark it as finished so players know it's over.
+            // Mark as finished
             database.child("rooms").child(code).child("status").setValue("finished")
         }
-    finish()
+        
+        // Display winners
+        val message = StringBuilder()
+        if (winnersList.isEmpty()) {
+            message.append("No winners recorded.")
+        } else {
+            message.append("Winners:\n")
+            for ((claim, winner) in winnersList) {
+                message.append("$claim: $winner\n")
+            }
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("Game Ended")
+            .setMessage(message.toString())
+            .setPositiveButton("Close Room") { _, _ -> 
+                 finish()
+            }
+            .setCancelable(false)
+            .show()
     }
 }

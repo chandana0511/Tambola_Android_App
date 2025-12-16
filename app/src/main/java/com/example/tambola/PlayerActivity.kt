@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.GridLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.database.DataSnapshot
@@ -27,8 +28,16 @@ class PlayerActivity : AppCompatActivity() {
     private val markedNumbers = mutableSetOf<Int>()
     private val calledNumbers = mutableSetOf<Int>()
 
+    private lateinit var btnClaimEarlyFive: Button
+    private lateinit var btnClaimFourCorners: Button
+    private lateinit var btnClaimTopLine: Button
+    private lateinit var btnClaimMiddleLine: Button
+    private lateinit var btnClaimBottomLine: Button
+    private lateinit var btnClaimFullHouse: Button
+
     // Store the generated ticket for validation
     private lateinit var currentTicket: Array<IntArray>
+    private val winnersList = mutableMapOf<String, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,12 +53,12 @@ class PlayerActivity : AppCompatActivity() {
         tvPlayerCurrentNumber = findViewById(R.id.tvPlayerCurrentNumber)
 
         // Claim Buttons
-        val btnClaimEarlyFive = findViewById<Button>(R.id.btnClaimEarlyFive)
-        val btnClaimFourCorners = findViewById<Button>(R.id.btnClaimFourCorners)
-        val btnClaimTopLine = findViewById<Button>(R.id.btnClaimTopLine)
-        val btnClaimMiddleLine = findViewById<Button>(R.id.btnClaimMiddleLine)
-        val btnClaimBottomLine = findViewById<Button>(R.id.btnClaimBottomLine)
-        val btnClaimFullHouse = findViewById<Button>(R.id.btnClaimFullHouse)
+        btnClaimEarlyFive = findViewById(R.id.btnClaimEarlyFive)
+        btnClaimFourCorners = findViewById(R.id.btnClaimFourCorners)
+        btnClaimTopLine = findViewById(R.id.btnClaimTopLine)
+        btnClaimMiddleLine = findViewById(R.id.btnClaimMiddleLine)
+        btnClaimBottomLine = findViewById(R.id.btnClaimBottomLine)
+        btnClaimFullHouse = findViewById(R.id.btnClaimFullHouse)
 
         val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
         val tvTicketPlaceholder = findViewById<TextView>(R.id.tvTicketPlaceholder)
@@ -107,6 +116,74 @@ class PlayerActivity : AppCompatActivity() {
                         // Handle error
                     }
                 })
+
+            // Listen for claims
+            database.child("rooms").child(code).child("claims")
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        winnersList.clear()
+                        for (child in snapshot.children) {
+                            val claimType = child.key
+                            val winnerId = child.value.toString()
+                            if (claimType != null) {
+                                winnersList[claimType] = winnerId
+                                disableClaimButton(claimType, winnerId)
+                            }
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+
+            // Listen for game status
+            database.child("rooms").child(code).child("status")
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val status = snapshot.getValue(String::class.java)
+                        if (status == "finished") {
+                            showWinnersDialog()
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+        }
+    }
+
+    private fun disableClaimButton(claimType: String, winnerId: String) {
+        val button = when(claimType) {
+            "Early Five" -> btnClaimEarlyFive
+            "Four Corners" -> btnClaimFourCorners
+            "Top Line" -> btnClaimTopLine
+            "Middle Line" -> btnClaimMiddleLine
+            "Bottom Line" -> btnClaimBottomLine
+            "Full House" -> btnClaimFullHouse
+            else -> null
+        }
+        
+        button?.let {
+            it.isEnabled = false
+            it.text = "$claimType\n($winnerId)"
+        }
+    }
+
+    private fun showWinnersDialog() {
+        val message = StringBuilder()
+        if (winnersList.isEmpty()) {
+            message.append("No winners this time!")
+        } else {
+            for ((claim, winner) in winnersList) {
+                message.append("$claim: $winner\n")
+            }
+        }
+        
+        if (!isFinishing) {
+            AlertDialog.Builder(this)
+                .setTitle("Game Over - Winners")
+                .setMessage(message.toString())
+                .setPositiveButton("OK") { _, _ -> finish() }
+                .setCancelable(false)
+                .show()
         }
     }
 
@@ -117,8 +194,23 @@ class PlayerActivity : AppCompatActivity() {
     private fun validateClaim(claimName: String, points: Int, validationCheck: () -> Boolean) {
         if (validationCheck()) {
              // Success: In a real app, notify the server/host
-            Toast.makeText(this, "Valid $claimName! You win $points points.", Toast.LENGTH_LONG).show()
-            // Example: database.child("rooms").child(roomCode!!).child("claims").push().setValue(mapOf("player" to playerId, "claim" to claimName))
+             roomCode?.let { code ->
+                 val claimRef = database.child("rooms").child(code).child("claims").child(claimName)
+                 claimRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                     override fun onDataChange(snapshot: DataSnapshot) {
+                         if (snapshot.exists()) {
+                             Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
+                         } else {
+                             claimRef.setValue(playerId ?: "Unknown").addOnSuccessListener {
+                                 Toast.makeText(this@PlayerActivity, "Valid $claimName! You win $points points.", Toast.LENGTH_LONG).show()
+                             }
+                         }
+                     }
+                     override fun onCancelled(error: DatabaseError) {
+                         // Error
+                     }
+                 })
+             }
         } else {
             // Failure
             Toast.makeText(this, "Bogus Claim! $claimName conditions not met.", Toast.LENGTH_SHORT).show()
