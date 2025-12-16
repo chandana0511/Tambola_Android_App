@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.widget.Button
 import android.widget.GridLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -24,6 +25,10 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvLastCalledNumber: TextView
     private lateinit var tvPlayerCurrentNumber: TextView
     private val markedNumbers = mutableSetOf<Int>()
+    private val calledNumbers = mutableSetOf<Int>()
+
+    // Store the generated ticket for validation
+    private lateinit var currentTicket: Array<IntArray>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,32 +36,40 @@ class PlayerActivity : AppCompatActivity() {
 
         roomCode = intent.getStringExtra("ROOM_CODE")
         playerId = intent.getStringExtra("PLAYER_ID")
-        database = FirebaseDatabase.getInstance().reference
+        // Use the specific Asia-Southeast URL to match HostActivity and RoomJoinActivity
+        database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
+
 
         tvLastCalledNumber = findViewById(R.id.tvLastCalledNumber)
         tvPlayerCurrentNumber = findViewById(R.id.tvPlayerCurrentNumber)
-        val btnClaimLine1 = findViewById<MaterialButton>(R.id.btnClaimLine1)
-        val btnClaimFullHouse = findViewById<MaterialButton>(R.id.btnClaimFullHouse)
+
+        // Claim Buttons
+        val btnClaimEarlyFive = findViewById<Button>(R.id.btnClaimEarlyFive)
+        val btnClaimFourCorners = findViewById<Button>(R.id.btnClaimFourCorners)
+        val btnClaimTopLine = findViewById<Button>(R.id.btnClaimTopLine)
+        val btnClaimMiddleLine = findViewById<Button>(R.id.btnClaimMiddleLine)
+        val btnClaimBottomLine = findViewById<Button>(R.id.btnClaimBottomLine)
+        val btnClaimFullHouse = findViewById<Button>(R.id.btnClaimFullHouse)
+
         val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
         val tvTicketPlaceholder = findViewById<TextView>(R.id.tvTicketPlaceholder)
 
         // Generate & display strict Tambola ticket
-        val ticket = generateTicket()
-        displayTicket(ticket, gridTicket)
+        currentTicket = generateTicket()
+        displayTicket(currentTicket, gridTicket)
 
         tvTicketPlaceholder.visibility = View.GONE
 
         // Listen for game updates from the Host
         listenForGameUpdates()
 
-        btnClaimLine1.setOnClickListener {
-            // In a real app, verify against called numbers
-            Toast.makeText(this, "Top Line Claimed! (Verification needed)", Toast.LENGTH_SHORT).show()
-        }
-
-        btnClaimFullHouse.setOnClickListener {
-            Toast.makeText(this, "Full House Claimed! (Verification needed)", Toast.LENGTH_SHORT).show()
-        }
+        // Setup Claim Click Listeners
+        btnClaimEarlyFive.setOnClickListener { validateClaim("Early Five", 10) { checkEarlyFive() } }
+        btnClaimFourCorners.setOnClickListener { validateClaim("Four Corners", 15) { checkFourCorners() } }
+        btnClaimTopLine.setOnClickListener { validateClaim("Top Line", 20) { checkLine(0) } }
+        btnClaimMiddleLine.setOnClickListener { validateClaim("Middle Line", 20) { checkLine(1) } }
+        btnClaimBottomLine.setOnClickListener { validateClaim("Bottom Line", 20) { checkLine(2) } }
+        btnClaimFullHouse.setOnClickListener { validateClaim("Full House", 50) { checkFullHouse() } }
     }
 
     private fun listenForGameUpdates() {
@@ -76,8 +89,98 @@ class PlayerActivity : AppCompatActivity() {
                         // Handle error
                     }
                 })
+
+            // Listen for all called numbers
+            database.child("rooms").child(code).child("calledNumbers")
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        calledNumbers.clear()
+                        for (child in snapshot.children) {
+                            val number = child.getValue(Int::class.java)
+                            if (number != null) {
+                                calledNumbers.add(number)
+                            }
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {
+                        // Handle error
+                    }
+                })
         }
     }
+
+    // ------------------------------------------------------------
+    //  CLAIM VALIDATION LOGIC
+    // ------------------------------------------------------------
+
+    private fun validateClaim(claimName: String, points: Int, validationCheck: () -> Boolean) {
+        if (validationCheck()) {
+             // Success: In a real app, notify the server/host
+            Toast.makeText(this, "Valid $claimName! You win $points points.", Toast.LENGTH_LONG).show()
+            // Example: database.child("rooms").child(roomCode!!).child("claims").push().setValue(mapOf("player" to playerId, "claim" to claimName))
+        } else {
+            // Failure
+            Toast.makeText(this, "Bogus Claim! $claimName conditions not met.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Early Five: Any 5 numbers on the ticket are marked
+    private fun checkEarlyFive(): Boolean {
+        var markedCount = 0
+        for (row in 0 until 3) {
+            for (col in 0 until 9) {
+                val num = currentTicket[row][col]
+                if (num != 0 && calledNumbers.contains(num)) {
+                    markedCount++
+                }
+            }
+        }
+        return markedCount >= 5
+    }
+
+    // Four Corners: 1st and last number of top and bottom rows
+    private fun checkFourCorners(): Boolean {
+        val topRowNumbers = currentTicket[0].filter { it != 0 }
+        val bottomRowNumbers = currentTicket[2].filter { it != 0 }
+
+        if (topRowNumbers.isEmpty() || bottomRowNumbers.isEmpty()) return false
+
+        val topLeft = topRowNumbers.first()
+        val topRight = topRowNumbers.last()
+        val bottomLeft = bottomRowNumbers.first()
+        val bottomRight = bottomRowNumbers.last()
+
+        return calledNumbers.contains(topLeft) &&
+               calledNumbers.contains(topRight) &&
+               calledNumbers.contains(bottomLeft) &&
+               calledNumbers.contains(bottomRight)
+    }
+
+    // Check a specific line (Top=0, Middle=1, Bottom=2)
+    private fun checkLine(rowIndex: Int): Boolean {
+        for (col in 0 until 9) {
+            val num = currentTicket[rowIndex][col]
+            if (num != 0 && !calledNumbers.contains(num)) {
+                return false // Found an uncalled number in this row
+            }
+        }
+        return true
+    }
+
+    // Full House: All 15 numbers marked
+    private fun checkFullHouse(): Boolean {
+         for (row in 0 until 3) {
+            for (col in 0 until 9) {
+                val num = currentTicket[row][col]
+                if (num != 0 && !calledNumbers.contains(num)) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
 
     // ------------------------------------------------------------
     //  STRICT TAMBOLA TICKET GENERATOR
@@ -174,10 +277,14 @@ class PlayerActivity : AppCompatActivity() {
                             tv.tag = null
                             markedNumbers.remove(value)
                         } else {
-                            tv.setBackgroundColor(Color.parseColor("#68D391"))
-                            tv.setTextColor(Color.WHITE)
-                            tv.tag = "marked"
-                            markedNumbers.add(value)
+                            if (!calledNumbers.contains(value)) {
+                                Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
+                            } else {
+                                tv.setBackgroundColor(Color.parseColor("#68D391"))
+                                tv.setTextColor(Color.WHITE)
+                                tv.tag = "marked"
+                                markedNumbers.add(value)
+                            }
                         }
                     }
 
