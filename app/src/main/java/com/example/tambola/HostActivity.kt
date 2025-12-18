@@ -1,10 +1,12 @@
 package com.example.tambola
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -22,34 +24,43 @@ class HostActivity : AppCompatActivity() {
     private val calledNumbersSet = mutableSetOf<Int>()
     private var availableNumbers = (1..90).toMutableList()
     private val allNumbersDisplay = (1..90).toList()
-    
+
     private lateinit var tvCurrentNumber: TextView
     private lateinit var btnCallNumber: Button
     private lateinit var btnEndGame: Button
     private lateinit var btnResetGame: Button
     private lateinit var rvNumbers: RecyclerView
     private lateinit var numbersAdapter: NumbersAdapter
-    
+
     private lateinit var database: DatabaseReference
     private var roomCode: String? = null
-    
-    // Track winners
+
     private val winnersList = mutableMapOf<String, String>()
+
+    private lateinit var winnerAnimationManager: WinnerAnimationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_host)
 
         roomCode = intent.getStringExtra("ROOM_CODE")
-        // Use the specific Asia-Southeast URL
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
-
 
         tvCurrentNumber = findViewById(R.id.tvCurrentNumber)
         btnCallNumber = findViewById(R.id.btnCallNumber)
         btnEndGame = findViewById(R.id.btnEndGame)
         btnResetGame = findViewById(R.id.btnResetGame)
         rvNumbers = findViewById(R.id.rvNumbers)
+
+        val rootView = findViewById<View>(android.R.id.content)
+        val gameUiViews = listOf<View>(
+            findViewById(R.id.tvHostTitle),
+            findViewById(R.id.cardCurrentNumber),
+            findViewById(R.id.btnCallNumber),
+            findViewById(R.id.rvNumbers),
+            findViewById(R.id.linearLayoutButtons)
+        )
+        winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
 
         btnEndGame.isEnabled = false
 
@@ -68,7 +79,7 @@ class HostActivity : AppCompatActivity() {
             resetGame()
         }
     }
-    
+
     private fun listenForClaims() {
         roomCode?.let { code ->
             database.child("rooms").child(code).child("claims")
@@ -84,7 +95,7 @@ class HostActivity : AppCompatActivity() {
                         }
 
                         if (winnersList.containsKey("Full House")) {
-                            if (btnCallNumber.isEnabled) { // Prevent multiple toasts and UI changes
+                            if (btnCallNumber.isEnabled) {
                                 Toast.makeText(this@HostActivity, "Full House has been successfully claimed and verified", Toast.LENGTH_LONG).show()
                                 btnEndGame.isEnabled = true
                                 btnCallNumber.isEnabled = false
@@ -101,7 +112,7 @@ class HostActivity : AppCompatActivity() {
 
     private fun setupRecyclerView() {
         numbersAdapter = NumbersAdapter(allNumbersDisplay, calledNumbersSet)
-        rvNumbers.layoutManager = GridLayoutManager(this, 10) // 10 columns for numbers 1-90
+        rvNumbers.layoutManager = GridLayoutManager(this, 10)
         rvNumbers.adapter = numbersAdapter
     }
 
@@ -110,14 +121,12 @@ class HostActivity : AppCompatActivity() {
             val randomIndex = Random.nextInt(availableNumbers.size)
             val number = availableNumbers.removeAt(randomIndex)
             calledNumbersSet.add(number)
-            
+
             tvCurrentNumber.text = number.toString()
-            
-            // Notify adapter to update UI
+
             val position = number - 1
             numbersAdapter.notifyItemChanged(position)
-            
-            // Push number to Firebase
+
             roomCode?.let { code ->
                 database.child("rooms").child(code).child("currentNumber").setValue(number)
                 database.child("rooms").child(code).child("calledNumbers").push().setValue(number)
@@ -132,25 +141,21 @@ class HostActivity : AppCompatActivity() {
     }
 
     private fun resetGame() {
-        // Clear local state
         calledNumbersSet.clear()
         availableNumbers = (1..90).toMutableList()
         winnersList.clear()
 
-        // Reset UI
         tvCurrentNumber.text = "Start"
         btnCallNumber.isEnabled = true
         btnEndGame.isEnabled = false
         numbersAdapter.notifyDataSetChanged()
 
-        // Clear Firebase data for the room and notify players
         roomCode?.let { code ->
             val roomRef = database.child("rooms").child(code)
             roomRef.child("currentNumber").removeValue()
             roomRef.child("calledNumbers").removeValue()
             roomRef.child("claims").removeValue()
             roomRef.child("status").setValue("reset").addOnSuccessListener {
-                // After a short delay, set status back to ongoing
                 Handler(Looper.getMainLooper()).postDelayed({
                     roomRef.child("status").setValue("ongoing")
                 }, 1000)
@@ -162,28 +167,11 @@ class HostActivity : AppCompatActivity() {
 
     private fun endGame() {
         roomCode?.let { code ->
-            // Mark as finished
             database.child("rooms").child(code).child("status").setValue("finished")
         }
-        
-        // Display winners
-        val message = StringBuilder()
-        if (winnersList.isEmpty()) {
-            message.append("No winners recorded.")
-        } else {
-            message.append("Winners:\n")
-            for ((claim, winner) in winnersList) {
-                message.append("$claim: $winner\n")
-            }
+
+        winnerAnimationManager.startWinnerSequence(winnersList) {
+            finish()
         }
-        
-        AlertDialog.Builder(this)
-            .setTitle("Game Ended")
-            .setMessage(message.toString())
-            .setPositiveButton("Close Room") { _, _ -> 
-                 finish()
-            }
-            .setCancelable(false)
-            .show()
     }
 }

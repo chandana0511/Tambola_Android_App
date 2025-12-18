@@ -103,4 +103,6 @@
             android:layout_marginStart="8dp"/>
     </LinearLayout>
 
+    <include layout="@layout/view_winner_overlay" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

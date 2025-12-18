@@ -1,5 +1,6 @@
 package com.example.tambola
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -40,9 +41,10 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnClaimBottomLine: Button
     private lateinit var btnClaimFullHouse: Button
 
-    // Store the generated ticket for validation
     private lateinit var currentTicket: Array<IntArray>
     private val winnersList = mutableMapOf<String, String>()
+
+    private lateinit var winnerAnimationManager: WinnerAnimationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,14 +58,11 @@ class PlayerActivity : AppCompatActivity() {
 
         roomCode = intent.getStringExtra("ROOM_CODE")
         playerId = intent.getStringExtra("PLAYER_ID")
-        // Use the specific Asia-Southeast URL to match HostActivity and RoomJoinActivity
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
-
 
         tvLastCalledNumber = findViewById(R.id.tvLastCalledNumber)
         tvPlayerCurrentNumber = findViewById(R.id.tvPlayerCurrentNumber)
 
-        // Claim Buttons
         btnClaimEarlyFive = findViewById(R.id.btnClaimEarlyFive)
         btnClaimFourCorners = findViewById(R.id.btnClaimFourCorners)
         btnClaimTopLine = findViewById(R.id.btnClaimTopLine)
@@ -74,16 +73,28 @@ class PlayerActivity : AppCompatActivity() {
         val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
         val tvTicketPlaceholder = findViewById<TextView>(R.id.tvTicketPlaceholder)
 
-        // Generate & display strict Tambola ticket
         currentTicket = generateTicket()
         displayTicket(currentTicket, gridTicket)
 
         tvTicketPlaceholder.visibility = View.GONE
 
-        // Listen for game updates from the Host
+        val rootView = findViewById<View>(android.R.id.content)
+        val gameUiViews = listOf<View>(
+            findViewById(R.id.tvPlayerTitle),
+            findViewById(R.id.cardPlayerCurrentNumber),
+            findViewById(R.id.tvLastCalledNumber),
+            findViewById(R.id.cardTicket),
+            findViewById(R.id.btnClaimEarlyFive),
+            findViewById(R.id.btnClaimFourCorners),
+            findViewById(R.id.btnClaimTopLine),
+            findViewById(R.id.btnClaimMiddleLine),
+            findViewById(R.id.btnClaimBottomLine),
+            findViewById(R.id.btnClaimFullHouse)
+        )
+        winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
+
         listenForGameUpdates()
 
-        // Setup Claim Click Listeners
         btnClaimEarlyFive.setOnClickListener { validateClaim("Early Five", 10) { checkEarlyFive() } }
         btnClaimFourCorners.setOnClickListener { validateClaim("Four Corners", 15) { checkFourCorners() } }
         btnClaimTopLine.setOnClickListener { validateClaim("Top Line", 20) { checkLine(0) } }
@@ -99,7 +110,6 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun listenForGameUpdates() {
         roomCode?.let { code ->
-            // Listen for current number
             database.child("rooms").child(code).child("currentNumber")
                 .addValueEventListener(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
@@ -110,12 +120,9 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
 
-                    override fun onCancelled(error: DatabaseError) {
-                        // Handle error
-                    }
+                    override fun onCancelled(error: DatabaseError) {}
                 })
 
-            // Listen for all called numbers
             database.child("rooms").child(code).child("calledNumbers")
                 .addValueEventListener(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
@@ -128,12 +135,9 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
 
-                    override fun onCancelled(error: DatabaseError) {
-                        // Handle error
-                    }
+                    override fun onCancelled(error: DatabaseError) {}
                 })
 
-            // Listen for claims
             database.child("rooms").child(code).child("claims")
                 .addValueEventListener(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
@@ -151,12 +155,15 @@ class PlayerActivity : AppCompatActivity() {
                     override fun onCancelled(error: DatabaseError) {}
                 })
 
-            // Listen for game status
             database.child("rooms").child(code).child("status")
                 .addValueEventListener(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
                         when (snapshot.getValue(String::class.java)) {
-                            "finished" -> showWinnersDialog()
+                            "finished" -> {
+                                winnerAnimationManager.startWinnerSequence(winnersList) {
+                                    finish()
+                                }
+                            }
                             "reset" -> resetPlayerState()
                         }
                     }
@@ -167,22 +174,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun resetPlayerState() {
-        Toast.makeText(this, "The host has reset the game! New ticket, same room.", Toast.LENGTH_LONG).show()
-
-        // Clear local data
-        markedNumbers.clear()
-        calledNumbers.clear()
-        winnersList.clear()
-
-        // Regenerate and display a new ticket
-        currentTicket = generateTicket()
-        val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
-        displayTicket(currentTicket, gridTicket)
-
-        // Reset UI elements
-        tvLastCalledNumber.text = "Last Called: None"
-        tvPlayerCurrentNumber.text = ""
-        resetClaimButtons()
+        Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_LONG).show()
+        recreate()
     }
 
     private fun resetClaimButtons() {
@@ -217,33 +210,8 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun showWinnersDialog() {
-        val message = StringBuilder()
-        if (winnersList.isEmpty()) {
-            message.append("No winners this time!")
-        } else {
-            for ((claim, winner) in winnersList) {
-                message.append("$claim: $winner\n")
-            }
-        }
-        
-        if (!isFinishing) {
-            AlertDialog.Builder(this)
-                .setTitle("Game Over - Winners")
-                .setMessage(message.toString())
-                .setPositiveButton("OK") { _, _ -> finish() }
-                .setCancelable(false)
-                .show()
-        }
-    }
-
-    // ------------------------------------------------------------
-    //  CLAIM VALIDATION LOGIC
-    // ------------------------------------------------------------
-
     private fun validateClaim(claimName: String, points: Int, validationCheck: () -> Boolean) {
         if (validationCheck()) {
-             // Success: In a real app, notify the server/host
              roomCode?.let { code ->
                  val claimRef = database.child("rooms").child(code).child("claims").child(claimName)
                  claimRef.runTransaction(object : Transaction.Handler {
@@ -269,12 +237,10 @@ class PlayerActivity : AppCompatActivity() {
                  })
              }
         } else {
-            // Failure
             Toast.makeText(this, "Bogus Claim! $claimName conditions not met.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Early Five: Any 5 numbers on the ticket are marked
     private fun checkEarlyFive(): Boolean {
         var markedCount = 0
         for (row in 0 until 3) {
@@ -288,7 +254,6 @@ class PlayerActivity : AppCompatActivity() {
         return markedCount >= 5
     }
 
-    // Four Corners: 1st and last number of top and bottom rows
     private fun checkFourCorners(): Boolean {
         val topRowNumbers = currentTicket[0].filter { it != 0 }
         val bottomRowNumbers = currentTicket[2].filter { it != 0 }
@@ -306,18 +271,16 @@ class PlayerActivity : AppCompatActivity() {
                calledNumbers.contains(bottomRight)
     }
 
-    // Check a specific line (Top=0, Middle=1, Bottom=2)
     private fun checkLine(rowIndex: Int): Boolean {
         for (col in 0 until 9) {
             val num = currentTicket[rowIndex][col]
             if (num != 0 && !calledNumbers.contains(num)) {
-                return false // Found an uncalled number in this row
+                return false
             }
         }
         return true
     }
 
-    // Full House: All 15 numbers marked
     private fun checkFullHouse(): Boolean {
          for (row in 0 until 3) {
             for (col in 0 until 9) {
@@ -330,22 +293,15 @@ class PlayerActivity : AppCompatActivity() {
         return true
     }
 
-
-    // ------------------------------------------------------------
-    //  STRICT TAMBOLA TICKET GENERATOR
-    // ------------------------------------------------------------
     private fun generateTicket(): Array<IntArray> {
         val ticket = Array(3) { IntArray(9) { 0 } }
         val mask = Array(3) { BooleanArray(9) { false } }
 
-        // Retry until we get a valid mask (rules: 5 per row, at least 1 per col)
         while (true) {
-            // Reset mask
             for (r in 0 until 3) {
                 mask[r].fill(false)
             }
 
-            // Fill each row with exactly 5 numbers
             for (r in 0 until 3) {
                 val cols = (0 until 9).toMutableList()
                 cols.shuffle()
@@ -354,7 +310,6 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
 
-            // Check if every column has at least one number
             var valid = true
             for (c in 0 until 9) {
                 if (!mask[0][c] && !mask[1][c] && !mask[2][c]) {
@@ -365,7 +320,6 @@ class PlayerActivity : AppCompatActivity() {
             if (valid) break
         }
 
-        // Fill numbers
         for (col in 0 until 9) {
             val start = if (col == 0) 1 else col * 10
             val end = if (col == 8) 90 else (col * 10) + 9
@@ -389,9 +343,6 @@ class PlayerActivity : AppCompatActivity() {
         return ticket
     }
 
-    // ------------------------------------------------------------
-    //  DISPLAY THE TICKET IN GRIDLAYOUT
-    // ------------------------------------------------------------
     private fun displayTicket(ticket: Array<IntArray>, grid: GridLayout) {
         grid.removeAllViews()
         grid.setBackgroundColor(Color.TRANSPARENT)
@@ -428,7 +379,7 @@ class PlayerActivity : AppCompatActivity() {
                             if (calledNumbers.contains(value)) {
                                 markedNumbers.add(value)
                                 styleNumberCell(tv, true)
-                                tv.isClickable = false // Lock after marking
+                                tv.isClickable = false
                             } else {
                                 Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
                             }
@@ -451,12 +402,12 @@ class PlayerActivity : AppCompatActivity() {
         drawable.cornerRadius = 16f
         
         if (marked) {
-            drawable.setColor(Color.parseColor("#4CAF50")) // Green
+            drawable.setColor(Color.parseColor("#4CAF50"))
             drawable.setStroke(2, Color.parseColor("#388E3C"))
             tv.setTextColor(Color.WHITE)
         } else {
             drawable.setColor(Color.WHITE)
-            drawable.setStroke(2, Color.parseColor("#BDBDBD")) // Grey
+            drawable.setStroke(2, Color.parseColor("#BDBDBD"))
             tv.setTextColor(Color.BLACK)
         }
         
@@ -470,7 +421,7 @@ class PlayerActivity : AppCompatActivity() {
         val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.RECTANGLE
         drawable.cornerRadius = 16f
-        drawable.setColor(Color.parseColor("#E0E0E0")) // Block color
+        drawable.setColor(Color.parseColor("#E0E0E0"))
         
         tv.background = drawable
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

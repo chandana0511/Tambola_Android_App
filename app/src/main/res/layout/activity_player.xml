@@ -237,5 +237,5 @@
     <!--        tools:layout_editor_absoluteY="488dp">-->
 
     <!--    </LinearLayout>-->
-
+<include layout="@layout/view_winner_overlay" />
 </androidx.constraintlayout.widget.ConstraintLayout>
