@@ -48,6 +48,12 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
+        if (savedInstanceState != null) {
+            savedInstanceState.getIntegerArrayList("MARKED_NUMBERS")?.let {
+                markedNumbers.addAll(it)
+            }
+        }
+
         roomCode = intent.getStringExtra("ROOM_CODE")
         playerId = intent.getStringExtra("PLAYER_ID")
         // Use the specific Asia-Southeast URL to match HostActivity and RoomJoinActivity
@@ -84,6 +90,11 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimMiddleLine.setOnClickListener { validateClaim("Middle Line", 20) { checkLine(1) } }
         btnClaimBottomLine.setOnClickListener { validateClaim("Bottom Line", 20) { checkLine(2) } }
         btnClaimFullHouse.setOnClickListener { validateClaim("Full House", 50) { checkFullHouse() } }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putIntegerArrayList("MARKED_NUMBERS", ArrayList(markedNumbers))
     }
 
     private fun listenForGameUpdates() {
@@ -373,20 +384,19 @@ class PlayerActivity : AppCompatActivity() {
 
                 if (value != 0) {
                     tv.text = value.toString()
-                    styleNumberCell(tv, markedNumbers.contains(value))
+                    val isMarked = markedNumbers.contains(value)
+                    styleNumberCell(tv, isMarked)
 
-                    tv.setOnClickListener {
-                        if (tv.tag == "marked") {
-                            tv.tag = null
-                            markedNumbers.remove(value)
-                            styleNumberCell(tv, false)
-                        } else {
-                            if (!calledNumbers.contains(value)) {
-                                Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
-                            } else {
-                                tv.tag = "marked"
+                    if (isMarked) {
+                        tv.isClickable = false
+                    } else {
+                        tv.setOnClickListener {
+                            if (calledNumbers.contains(value)) {
                                 markedNumbers.add(value)
                                 styleNumberCell(tv, true)
+                                tv.isClickable = false // Lock after marking
+                            } else {
+                                Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
