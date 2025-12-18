@@ -155,15 +155,49 @@ class PlayerActivity : AppCompatActivity() {
             database.child("rooms").child(code).child("status")
                 .addValueEventListener(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
-                        val status = snapshot.getValue(String::class.java)
-                        if (status == "finished") {
-                            showWinnersDialog()
+                        when (snapshot.getValue(String::class.java)) {
+                            "finished" -> showWinnersDialog()
+                            "reset" -> resetPlayerState()
                         }
                     }
 
                     override fun onCancelled(error: DatabaseError) {}
                 })
         }
+    }
+
+    private fun resetPlayerState() {
+        Toast.makeText(this, "The host has reset the game! New ticket, same room.", Toast.LENGTH_LONG).show()
+
+        // Clear local data
+        markedNumbers.clear()
+        calledNumbers.clear()
+        winnersList.clear()
+
+        // Regenerate and display a new ticket
+        currentTicket = generateTicket()
+        val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
+        displayTicket(currentTicket, gridTicket)
+
+        // Reset UI elements
+        tvLastCalledNumber.text = "Last Called: None"
+        tvPlayerCurrentNumber.text = ""
+        resetClaimButtons()
+    }
+
+    private fun resetClaimButtons() {
+        btnClaimEarlyFive.isEnabled = true
+        btnClaimEarlyFive.text = "Early Five"
+        btnClaimFourCorners.isEnabled = true
+        btnClaimFourCorners.text = "Four Corners"
+        btnClaimTopLine.isEnabled = true
+        btnClaimTopLine.text = "Top Line"
+        btnClaimMiddleLine.isEnabled = true
+        btnClaimMiddleLine.text = "Middle Line"
+        btnClaimBottomLine.isEnabled = true
+        btnClaimBottomLine.text = "Bottom Line"
+        btnClaimFullHouse.isEnabled = true
+        btnClaimFullHouse.text = "Full House"
     }
 
     private fun disableClaimButton(claimType: String, winnerId: String) {

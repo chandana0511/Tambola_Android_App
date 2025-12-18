@@ -1,6 +1,8 @@
 package com.example.tambola
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
@@ -141,13 +143,18 @@ class HostActivity : AppCompatActivity() {
         btnEndGame.isEnabled = false
         numbersAdapter.notifyDataSetChanged()
 
-        // Clear Firebase data for the room
+        // Clear Firebase data for the room and notify players
         roomCode?.let { code ->
             val roomRef = database.child("rooms").child(code)
             roomRef.child("currentNumber").removeValue()
             roomRef.child("calledNumbers").removeValue()
             roomRef.child("claims").removeValue()
-            roomRef.child("status").setValue("ongoing")
+            roomRef.child("status").setValue("reset").addOnSuccessListener {
+                // After a short delay, set status back to ongoing
+                Handler(Looper.getMainLooper()).postDelayed({
+                    roomRef.child("status").setValue("ongoing")
+                }, 1000)
+            }
         }
 
         Toast.makeText(this, "Game Reset!", Toast.LENGTH_SHORT).show()
