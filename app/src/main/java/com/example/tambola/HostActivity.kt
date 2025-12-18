@@ -1,8 +1,10 @@
 package com.example.tambola
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
@@ -16,12 +18,13 @@ import kotlin.random.Random
 
 class HostActivity : AppCompatActivity() {
     private val calledNumbersSet = mutableSetOf<Int>()
-    private val availableNumbers = (1..90).toMutableList()
+    private var availableNumbers = (1..90).toMutableList()
     private val allNumbersDisplay = (1..90).toList()
     
     private lateinit var tvCurrentNumber: TextView
     private lateinit var btnCallNumber: Button
     private lateinit var btnEndGame: Button
+    private lateinit var btnResetGame: Button
     private lateinit var rvNumbers: RecyclerView
     private lateinit var numbersAdapter: NumbersAdapter
     
@@ -43,7 +46,10 @@ class HostActivity : AppCompatActivity() {
         tvCurrentNumber = findViewById(R.id.tvCurrentNumber)
         btnCallNumber = findViewById(R.id.btnCallNumber)
         btnEndGame = findViewById(R.id.btnEndGame)
+        btnResetGame = findViewById(R.id.btnResetGame)
         rvNumbers = findViewById(R.id.rvNumbers)
+
+        btnEndGame.isEnabled = false
 
         setupRecyclerView()
         listenForClaims()
@@ -54,6 +60,10 @@ class HostActivity : AppCompatActivity() {
 
         btnEndGame.setOnClickListener {
             endGame()
+        }
+
+        btnResetGame.setOnClickListener {
+            resetGame()
         }
     }
     
@@ -68,6 +78,14 @@ class HostActivity : AppCompatActivity() {
                             val winnerId = child.value.toString()
                             if (claimType != null) {
                                 winnersList[claimType] = winnerId
+                            }
+                        }
+
+                        if (winnersList.containsKey("Full House")) {
+                            if (btnCallNumber.isEnabled) { // Prevent multiple toasts and UI changes
+                                Toast.makeText(this@HostActivity, "Full House has been successfully claimed and verified", Toast.LENGTH_LONG).show()
+                                btnEndGame.isEnabled = true
+                                btnCallNumber.isEnabled = false
                             }
                         }
                     }
@@ -109,6 +127,30 @@ class HostActivity : AppCompatActivity() {
                 database.child("rooms").child(code).child("status").setValue("finished")
             }
         }
+    }
+
+    private fun resetGame() {
+        // Clear local state
+        calledNumbersSet.clear()
+        availableNumbers = (1..90).toMutableList()
+        winnersList.clear()
+
+        // Reset UI
+        tvCurrentNumber.text = "Start"
+        btnCallNumber.isEnabled = true
+        btnEndGame.isEnabled = false
+        numbersAdapter.notifyDataSetChanged()
+
+        // Clear Firebase data for the room
+        roomCode?.let { code ->
+            val roomRef = database.child("rooms").child(code)
+            roomRef.child("currentNumber").removeValue()
+            roomRef.child("calledNumbers").removeValue()
+            roomRef.child("claims").removeValue()
+            roomRef.child("status").setValue("ongoing")
+        }
+
+        Toast.makeText(this, "Game Reset!", Toast.LENGTH_SHORT).show()
     }
 
     private fun endGame() {

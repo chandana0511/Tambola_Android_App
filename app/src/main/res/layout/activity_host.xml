@@ -66,19 +66,41 @@
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp"
-        app:layout_constraintBottom_toTopOf="@id/btnEndGame"
+        app:layout_constraintBottom_toTopOf="@id/linearLayoutButtons"
         app:layout_constraintTop_toBottomOf="@id/btnCallNumber" />
 
-    <Button
-        android:id="@+id/btnEndGame"
+    <LinearLayout
+        android:id="@+id/linearLayoutButtons"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="24dp"
+        android:orientation="horizontal"
         android:layout_marginBottom="24dp"
-        android:backgroundTint="#E53E3E"
-        android:text="End Game"
-        android:textSize="16sp"
-        app:cornerRadius="12dp"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginHorizontal="24dp">
+
+        <Button
+            android:id="@+id/btnResetGame"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:backgroundTint="#FFA726"
+            android:text="Reset Game"
+            android:textSize="16sp"
+            app:cornerRadius="12dp"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btnEndGame"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:backgroundTint="#E53E3E"
+            android:text="End Game"
+            android:textSize="16sp"
+            app:cornerRadius="12dp"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
