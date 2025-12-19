@@ -3,6 +3,7 @@ package com.example.tambola
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.animation.AnimationUtils
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -18,6 +19,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+
+        val ivTambolaLogo = findViewById<ImageView>(R.id.ivTambolaLogo)
+        val pulseAnimation = AnimationUtils.loadAnimation(this, R.anim.pulse)
+        ivTambolaLogo.startAnimation(pulseAnimation)
         
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
