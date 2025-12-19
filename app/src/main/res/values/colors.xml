@@ -23,6 +23,14 @@
 
     <color name="divider">#E5E7EB</color>
 
+    <!-- Dark Theme -->
+    <color name="dark_background">#1A202C</color>
+    <color name="dark_card_background">#2D3748</color>
+    <color name="dark_text_primary">#E2E8F0</color>
+    <color name="dark_text_secondary">#A0AEC0</color>
+    <color name="dark_accent_host">#4FD1C5</color>
+    <color name="dark_accent_join">#F6E05E</color>
+
     <!-- Legacy compatibility mappings to prevent other files from breaking if they still use old names -->
     <color name="background_soft">@color/background_page</color>
     <color name="primary_teal">@color/primary</color>

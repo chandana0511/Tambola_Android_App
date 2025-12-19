@@ -6,7 +6,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#D9000000"
+    android:background="#1A202C"
     tools:context=".MainActivity">
 
     <!-- Profile Icon -->
@@ -28,13 +28,16 @@
         android:id="@+id/ivTambolaLogo"
         android:layout_width="260dp"
         android:layout_height="260dp"
-        android:src="@drawable/tambola"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="48dp"
+        android:layout_marginBotto="48dp"
         android:contentDescription="Tambola Logo"
         android:scaleType="fitCenter"
-        app:layout_constraintTop_toBottomOf="@id/ivProfile"
-        app:layout_constraintStart_toStartOf="parent"
+        android:src="@drawable/tambola"
+        app:layout_constraintBottom_toTopOf="@+id/btnHost"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ivProfile" />
 
     <!-- HOST CARD -->
     <com.google.android.material.card.MaterialCardView
@@ -42,40 +45,59 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="28dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="80dp"
         android:clickable="true"
         android:focusable="true"
-        app:cardBackgroundColor="#F7FAFC"
-        app:cardCornerRadius="20dp"
+        app:cardBackgroundColor="#2D3748"
+        app:cardCornerRadius="24dp"
         app:cardElevation="10dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/ivTambolaLogo"
-        app:strokeColor="@color/primary_teal"
-        app:strokeWidth="1.5dp">
+        app:strokeColor="#4FD1C5"
+        app:strokeWidth="1dp">
 
-        <LinearLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="26dp">
+            android:padding="26dp"
+            >
+
+            <ImageView
+                android:id="@+id/ivHostIcon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/host"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/tvHostTitle"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Host a Game 👑"
-                android:textColor="#285E61"
+                android:layout_marginStart="16dp"
+                android:text="Host a Game"
+                android:textColor="#E2E8F0"
                 android:textSize="22sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/ivHostIcon"
+                app:layout_constraintTop_toTopOf="parent" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:text="Start the game, call numbers, control the fun."
-                android:textColor="#4A5568"
-                android:textSize="15sp" />
-        </LinearLayout>
+                android:textColor="#A0AEC0"
+                android:textSize="15sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="@id/tvHostTitle"
+                app:layout_constraintTop_toBottomOf="@id/tvHostTitle" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <!-- JOIN CARD -->
@@ -87,37 +109,55 @@
         android:layout_marginTop="20dp"
         android:clickable="true"
         android:focusable="true"
-        app:cardCornerRadius="20dp"
+        app:cardCornerRadius="24dp"
         app:cardElevation="10dp"
-        app:strokeWidth="1.5dp"
-        app:strokeColor="@color/primary_teal"
-        app:cardBackgroundColor="#FFFDF7"
+        app:strokeWidth="1dp"
+        app:strokeColor="#F6E05E"
+        app:cardBackgroundColor="#2D3748"
         app:layout_constraintTop_toBottomOf="@id/btnHost"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintEnd_toEndOf="parent"
+        >
 
-        <LinearLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:padding="26dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Join as Player 🎫"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="#7B341E" />
+            <ImageView
+                android:id="@+id/ivJoinIcon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/players"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/tvJoinTitle"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginStart="16dp"
+                android:text="Join as Player"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#E2E8F0"
+                app:layout_constraintStart_toEndOf="@id/ivJoinIcon"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
                 android:text="Get your ticket and chase those winning patterns."
                 android:textSize="15sp"
-                android:textColor="#4A5568" />
-        </LinearLayout>
+                android:textColor="#A0AEC0"
+                app:layout_constraintStart_toStartOf="@id/tvJoinTitle"
+                app:layout_constraintTop_toBottomOf="@id/tvJoinTitle"
+                app:layout_constraintEnd_toEndOf="parent"/>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
     </com.google.android.material.card.MaterialCardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
