@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F0F4F8"
+    android:background="#D9000000"
     tools:context=".MainActivity">
 
     <ImageView
@@ -15,14 +14,14 @@
         android:layout_height="40dp"
         android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
-        android:src="@drawable/ic_person"
-        app:tint="#2D3748"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:clickable="true"
-        android:focusable="true"
         android:contentDescription="User Profile"
+        android:focusable="true"
+        android:src="@drawable/ic_person"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:tint="#2D3748" />
 
     <androidx.cardview.widget.CardView
         android:id="@+id/titleCard"
@@ -30,44 +29,44 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="24dp"
         android:layout_marginTop="16dp"
+        app:cardBackgroundColor="#FFFFFF"
         app:cardCornerRadius="20dp"
         app:cardElevation="8dp"
-        app:cardBackgroundColor="#FFFFFF"
-        app:layout_constraintTop_toBottomOf="@id/ivProfile"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toBottomOf="@id/ivProfile">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center"
             android:orientation="vertical"
-            android:padding="32dp"
-            android:gravity="center">
+            android:padding="32dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🎱 Tambola"
+                android:textColor="#2D3748"
                 android:textSize="34sp"
-                android:textStyle="bold"
-                android:textColor="#2D3748"/>
+                android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Office Edition 🏢"
-                android:textSize="18sp"
                 android:layout_marginTop="4dp"
-                android:textColor="#718096"/>
+                android:text="Office Edition 🏢"
+                android:textColor="#718096"
+                android:textSize="18sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Wait... are you working or playing?"
-                android:textSize="14sp"
                 android:layout_marginTop="12dp"
-                android:textStyle="italic"
-                android:textColor="#A0AEC0"/>
+                android:text="Wait... are you working or playing?"
+                android:textColor="#A0AEC0"
+                android:textSize="14sp"
+                android:textStyle="italic" />
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
@@ -78,15 +77,15 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="32dp"
         android:layout_marginTop="40dp"
-        app:cardCornerRadius="16dp"
-        app:strokeColor="#4FD1C5"
-        app:strokeWidth="2dp"
-        app:cardElevation="4dp"
         android:clickable="true"
         android:focusable="true"
-        app:layout_constraintTop_toBottomOf="@id/titleCard"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="4dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toBottomOf="@id/titleCard"
+        app:strokeColor="#4FD1C5"
+        app:strokeWidth="2dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -98,16 +97,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Host a Game 👑"
+                android:textColor="#285E61"
                 android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="#285E61"/>
+                android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="You're the boss. Call the shots (literally)."
                 android:layout_marginTop="8dp"
-                android:textColor="#4A5568"/>
+                android:text="You're the boss. Call the shots (literally)."
+                android:textColor="#4A5568" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -118,15 +117,15 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="32dp"
         android:layout_marginTop="24dp"
-        app:cardCornerRadius="16dp"
-        app:strokeColor="#F6AD55"
-        app:strokeWidth="2dp"
-        app:cardElevation="4dp"
         android:clickable="true"
         android:focusable="true"
-        app:layout_constraintTop_toBottomOf="@id/btnHost"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="4dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toBottomOf="@id/btnHost"
+        app:strokeColor="#F6AD55"
+        app:strokeWidth="2dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -138,16 +137,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Join as Player 🎫"
+                android:textColor="#7B341E"
                 android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="#7B341E"/>
+                android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Get a ticket and hope luck is on your side."
                 android:layout_marginTop="8dp"
-                android:textColor="#4A5568"/>
+                android:text="Get a ticket and hope luck is on your side."
+                android:textColor="#4A5568" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
