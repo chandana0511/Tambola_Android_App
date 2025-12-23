@@ -1,6 +1,5 @@
 package com.example.tambola
 
-import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -12,9 +11,7 @@ import android.widget.Button
 import android.widget.GridLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -22,18 +19,28 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.MutableData
 import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
-import kotlin.random.Random
 
 class PlayerActivity : AppCompatActivity() {
 
     private lateinit var database: DatabaseReference
     private var roomCode: String? = null
     private var playerId: String? = null
+    private var displayName: String? = null
+
+    // UI Elements
     private lateinit var tvLastCalledNumber: TextView
     private lateinit var tvPlayerCurrentNumber: TextView
+    private lateinit var gridTicket: GridLayout
+    private lateinit var tvTicketPlaceholder: TextView
+
+    // Game State
     private val markedNumbers = mutableSetOf<Int>()
     private val calledNumbers = mutableSetOf<Int>()
+    private lateinit var currentTicket: Array<IntArray>
+    private val winnersList = mutableMapOf<String, String>()
+    private var currentResetVersion: Long = 0
 
+    // Claim Buttons
     private lateinit var btnClaimEarlyFive: Button
     private lateinit var btnClaimFourCorners: Button
     private lateinit var btnClaimTopLine: Button
@@ -41,27 +48,34 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnClaimBottomLine: Button
     private lateinit var btnClaimFullHouse: Button
 
-    private lateinit var currentTicket: Array<IntArray>
-    private val winnersList = mutableMapOf<String, String>()
-
     private lateinit var winnerAnimationManager: WinnerAnimationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
-        if (savedInstanceState != null) {
-            savedInstanceState.getIntegerArrayList("MARKED_NUMBERS")?.let {
-                markedNumbers.addAll(it)
-            }
-        }
-
+        // --- Initialization ---
         roomCode = intent.getStringExtra("ROOM_CODE")
         playerId = intent.getStringExtra("PLAYER_ID")
+        displayName = intent.getStringExtra("DISPLAY_NAME")
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
 
+        initializeViews()
+
+        val rootView = findViewById<View>(android.R.id.content)
+        val gameUiViews = listOf<View>(findViewById(R.id.tvPlayerTitle), findViewById(R.id.cardPlayerCurrentNumber), findViewById(R.id.tvLastCalledNumber), findViewById(R.id.cardTicket), findViewById(R.id.btnClaimEarlyFive), findViewById(R.id.btnClaimFourCorners), findViewById(R.id.btnClaimTopLine), findViewById(R.id.btnClaimMiddleLine), findViewById(R.id.btnClaimBottomLine), findViewById(R.id.btnClaimFullHouse))
+        winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
+
+        // --- Event Listeners ---
+        listenForGameUpdates()
+        setupClaimButtonListeners()
+    }
+
+    private fun initializeViews() {
         tvLastCalledNumber = findViewById(R.id.tvLastCalledNumber)
         tvPlayerCurrentNumber = findViewById(R.id.tvPlayerCurrentNumber)
+        gridTicket = findViewById(R.id.gridTicket)
+        tvTicketPlaceholder = findViewById(R.id.tvTicketPlaceholder)
 
         btnClaimEarlyFive = findViewById(R.id.btnClaimEarlyFive)
         btnClaimFourCorners = findViewById(R.id.btnClaimFourCorners)
@@ -69,116 +83,134 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimMiddleLine = findViewById(R.id.btnClaimMiddleLine)
         btnClaimBottomLine = findViewById(R.id.btnClaimBottomLine)
         btnClaimFullHouse = findViewById(R.id.btnClaimFullHouse)
-
-        val gridTicket = findViewById<GridLayout>(R.id.gridTicket)
-        val tvTicketPlaceholder = findViewById<TextView>(R.id.tvTicketPlaceholder)
-
-        currentTicket = generateTicket()
-        displayTicket(currentTicket, gridTicket)
-
-        tvTicketPlaceholder.visibility = View.GONE
-
-        val rootView = findViewById<View>(android.R.id.content)
-        val gameUiViews = listOf<View>(
-            findViewById(R.id.tvPlayerTitle),
-            findViewById(R.id.cardPlayerCurrentNumber),
-            findViewById(R.id.tvLastCalledNumber),
-            findViewById(R.id.cardTicket),
-            findViewById(R.id.btnClaimEarlyFive),
-            findViewById(R.id.btnClaimFourCorners),
-            findViewById(R.id.btnClaimTopLine),
-            findViewById(R.id.btnClaimMiddleLine),
-            findViewById(R.id.btnClaimBottomLine),
-            findViewById(R.id.btnClaimFullHouse)
-        )
-        winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
-
-        listenForGameUpdates()
-
-        btnClaimEarlyFive.setOnClickListener { validateClaim("Early Five", 10) { checkEarlyFive() } }
-        btnClaimFourCorners.setOnClickListener { validateClaim("Four Corners", 15) { checkFourCorners() } }
-        btnClaimTopLine.setOnClickListener { validateClaim("Top Line", 20) { checkLine(0) } }
-        btnClaimMiddleLine.setOnClickListener { validateClaim("Middle Line", 20) { checkLine(1) } }
-        btnClaimBottomLine.setOnClickListener { validateClaim("Bottom Line", 20) { checkLine(2) } }
-        btnClaimFullHouse.setOnClickListener { validateClaim("Full House", 50) { checkFullHouse() } }
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putIntegerArrayList("MARKED_NUMBERS", ArrayList(markedNumbers))
+    private fun setupClaimButtonListeners() {
+        btnClaimEarlyFive.setOnClickListener { validateClaim("Early Five") { checkEarlyFive() } }
+        btnClaimFourCorners.setOnClickListener { validateClaim("Four Corners") { checkFourCorners() } }
+        btnClaimTopLine.setOnClickListener { validateClaim("Top Line") { checkLine(0) } }
+        btnClaimMiddleLine.setOnClickListener { validateClaim("Middle Line") { checkLine(1) } }
+        btnClaimBottomLine.setOnClickListener { validateClaim("Bottom Line") { checkLine(2) } }
+        btnClaimFullHouse.setOnClickListener { validateClaim("Full House") { checkFullHouse() } }
     }
 
+    /**
+     * Registers all Firebase listeners to keep the game state synchronized.
+     */
     private fun listenForGameUpdates() {
-        roomCode?.let { code ->
-            database.child("rooms").child(code).child("currentNumber")
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        val number = snapshot.getValue(Int::class.java)
-                        if (number != null) {
-                            tvLastCalledNumber.text = "Last Called: $number"
-                            tvPlayerCurrentNumber.text = number.toString()
-                        }
-                    }
+        if (roomCode == null || playerId == null) return
+        val roomRef = database.child("rooms").child(roomCode!!)
 
-                    override fun onCancelled(error: DatabaseError) {}
-                })
+        // Listener for the player's assigned ticket
+        roomRef.child("tickets").child(playerId!!).addValueEventListener(object: ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val ticketData = snapshot.value as? List<List<Long>>
+                if (ticketData != null) {
+                    currentTicket = ticketData.map { row -> row.map { it.toInt() }.toIntArray() }.toTypedArray()
+                    tvTicketPlaceholder.visibility = View.GONE
+                    gridTicket.visibility = View.VISIBLE
+                    displayTicket()
+                } else {
+                    tvTicketPlaceholder.text = "Waiting for host to assign ticket..."
+                    tvTicketPlaceholder.visibility = View.VISIBLE
+                    gridTicket.visibility = View.GONE
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
 
-            database.child("rooms").child(code).child("calledNumbers")
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        calledNumbers.clear()
-                        for (child in snapshot.children) {
-                            val number = child.getValue(Int::class.java)
-                            if (number != null) {
-                                calledNumbers.add(number)
-                            }
-                        }
-                    }
+        // Listener for the player's marked numbers
+        roomRef.child("markedNumbers").child(playerId!!).addValueEventListener(object: ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                markedNumbers.clear()
+                snapshot.children.mapNotNullTo(markedNumbers) { it.getValue(Int::class.java) }
+                if(::currentTicket.isInitialized) displayTicket()
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
 
-                    override fun onCancelled(error: DatabaseError) {}
-                })
+        // Listener for the globally called numbers
+        roomRef.child("calledNumbers").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                calledNumbers.clear()
+                snapshot.children.mapNotNullTo(calledNumbers) { it.getValue(Int::class.java) }
+                updateCalledNumberUI()
+                if(::currentTicket.isInitialized) displayTicket()
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
 
-            database.child("rooms").child(code).child("claims")
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        winnersList.clear()
-                        for (child in snapshot.children) {
-                            val claimType = child.key
-                            val winnerId = child.value.toString()
-                            if (claimType != null) {
-                                winnersList[claimType] = winnerId
-                                disableClaimButton(claimType, winnerId)
-                            }
-                        }
-                    }
+        // Listener for all claims made in the room
+        roomRef.child("claims").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                winnersList.clear()
+                // First, re-enable all buttons
+                resetClaimButtonsUI()
+                // Then, disable the ones that have a winner
+                snapshot.children.forEach { claimSnapshot ->
+                    val claimType = claimSnapshot.key!!
+                    val winnerName = claimSnapshot.value.toString()
+                    winnersList[claimType] = winnerName
+                    disableClaimButton(claimType, winnerName)
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
 
-                    override fun onCancelled(error: DatabaseError) {}
-                })
+        // Listener for the overall game status
+        roomRef.child("status").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.getValue(String::class.java) == "finished") {
+                    winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
 
-            database.child("rooms").child(code).child("status")
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        when (snapshot.getValue(String::class.java)) {
-                            "finished" -> {
-                                winnerAnimationManager.startWinnerSequence(winnersList) {
-                                    finish()
-                                }
-                            }
-                            "reset" -> resetPlayerState()
-                        }
-                    }
+        // *** The key listener for handling game resets ***
+        roomRef.child("resetVersion").addValueEventListener(object : ValueEventListener {
+             override fun onDataChange(snapshot: DataSnapshot) {
+                 val newVersion = snapshot.getValue(Long::class.java) ?: 1
+                 if (currentResetVersion == 0L) { // On initial load
+                     currentResetVersion = newVersion
+                 } else if (newVersion > currentResetVersion) { // If host has incremented the version
+                     currentResetVersion = newVersion
+                     resetPlayerState() // Trigger the safe reset
+                 }
+             }
+             override fun onCancelled(error: DatabaseError) {}
+         })
+    }
 
-                    override fun onCancelled(error: DatabaseError) {}
-                })
+    /**
+     * Safely resets the player's state without recreating the Activity.
+     * This avoids state loss and provides a much smoother user experience.
+     */
+    private fun resetPlayerState() {
+        Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_LONG).show()
+
+        // 1. Clear local state variables
+        markedNumbers.clear()
+        calledNumbers.clear()
+        winnersList.clear()
+        // Note: currentTicket will be overwritten by the Firebase listener, so no need to clear it here.
+
+        // 2. Reset the UI to its initial state
+        updateCalledNumberUI() // Clears the called number display
+        resetClaimButtonsUI() // Re-enables all claim buttons
+
+        // 3. Re-display the ticket. The `listenForGameUpdates` listeners for tickets,
+        // markedNumbers, and calledNumbers will automatically fetch the new data and
+        // call `displayTicket()` to refresh the UI.
+        if (::currentTicket.isInitialized) {
+            displayTicket() 
         }
     }
 
-    private fun resetPlayerState() {
-        Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_LONG).show()
-        recreate()
-    }
-
-    private fun resetClaimButtons() {
+    /**
+     * Resets the claim buttons to their default, enabled state.
+     */
+    private fun resetClaimButtonsUI() {
         btnClaimEarlyFive.isEnabled = true
         btnClaimEarlyFive.text = "Early Five"
         btnClaimFourCorners.isEnabled = true
@@ -193,6 +225,20 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimFullHouse.text = "Full House"
     }
 
+    /**
+     * Updates the UI elements that display the last called number.
+     */
+    private fun updateCalledNumberUI() {
+        val lastNumber = calledNumbers.lastOrNull()
+        if (lastNumber != null && lastNumber != 0) {
+            tvLastCalledNumber.text = "Last Called: $lastNumber"
+            tvPlayerCurrentNumber.text = lastNumber.toString()
+        } else {
+            tvLastCalledNumber.text = "Last Called: -"
+            tvPlayerCurrentNumber.text = "-"
+        }
+    }
+
     private fun disableClaimButton(claimType: String, winnerId: String) {
         val button = when(claimType) {
             "Early Five" -> btnClaimEarlyFive
@@ -203,36 +249,30 @@ class PlayerActivity : AppCompatActivity() {
             "Full House" -> btnClaimFullHouse
             else -> null
         }
-        
         button?.let {
             it.isEnabled = false
-            it.text = "$claimType\n($winnerId)"
+            it.text = "$claimType($winnerId)"
         }
     }
 
-    private fun validateClaim(claimName: String, points: Int, validationCheck: () -> Boolean) {
+    private fun validateClaim(claimName: String, validationCheck: () -> Boolean) {
+        if (!::currentTicket.isInitialized) {
+             Toast.makeText(this, "Ticket not loaded yet.", Toast.LENGTH_SHORT).show()
+             return
+        }
         if (validationCheck()) {
              roomCode?.let { code ->
                  val claimRef = database.child("rooms").child(code).child("claims").child(claimName)
                  claimRef.runTransaction(object : Transaction.Handler {
                      override fun doTransaction(currentData: MutableData): Transaction.Result {
-                         if (currentData.value == null) {
-                             currentData.value = playerId ?: "Unknown"
-                             return Transaction.success(currentData)
-                         }
-                         return Transaction.abort()
+                         return if (currentData.value == null) {
+                             currentData.value = displayName ?: playerId ?: "Unknown"
+                             Transaction.success(currentData)
+                         } else Transaction.abort()
                      }
-
-                     override fun onComplete(
-                         error: DatabaseError?,
-                         committed: Boolean,
-                         currentData: DataSnapshot?
-                     ) {
-                         if (committed) {
-                             Toast.makeText(this@PlayerActivity, "Valid $claimName! You win $points points.", Toast.LENGTH_LONG).show()
-                         } else {
-                             Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
-                         }
+                     override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
+                         if (committed) Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_LONG).show()
+                         else Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
                      }
                  })
              }
@@ -241,118 +281,36 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkEarlyFive(): Boolean {
-        var markedCount = 0
-        for (row in 0 until 3) {
-            for (col in 0 until 9) {
-                val num = currentTicket[row][col]
-                if (num != 0 && calledNumbers.contains(num)) {
-                    markedCount++
-                }
-            }
-        }
-        return markedCount >= 5
-    }
-
+    // --- Claim Validation Logic ---
+    private fun checkEarlyFive(): Boolean = markedNumbers.intersect(currentTicket.flatMap { it.toList() }.toSet()).size >= 5
+    
     private fun checkFourCorners(): Boolean {
-        val topRowNumbers = currentTicket[0].filter { it != 0 }
-        val bottomRowNumbers = currentTicket[2].filter { it != 0 }
-
-        if (topRowNumbers.isEmpty() || bottomRowNumbers.isEmpty()) return false
-
-        val topLeft = topRowNumbers.first()
-        val topRight = topRowNumbers.last()
-        val bottomLeft = bottomRowNumbers.first()
-        val bottomRight = bottomRowNumbers.last()
-
-        return calledNumbers.contains(topLeft) &&
-               calledNumbers.contains(topRight) &&
-               calledNumbers.contains(bottomLeft) &&
-               calledNumbers.contains(bottomRight)
+        val topRow = currentTicket[0].filter { it != 0 }
+        val bottomRow = currentTicket[2].filter { it != 0 }
+        if (topRow.isEmpty() || bottomRow.isEmpty()) return false
+        val corners = setOf(topRow.first(), topRow.last(), bottomRow.first(), bottomRow.last())
+        return markedNumbers.containsAll(corners)
     }
 
     private fun checkLine(rowIndex: Int): Boolean {
-        for (col in 0 until 9) {
-            val num = currentTicket[rowIndex][col]
-            if (num != 0 && !calledNumbers.contains(num)) {
-                return false
-            }
-        }
-        return true
+        val lineNumbers = currentTicket[rowIndex].filter { it != 0 }.toSet()
+        return lineNumbers.isNotEmpty() && markedNumbers.containsAll(lineNumbers)
     }
 
     private fun checkFullHouse(): Boolean {
-         for (row in 0 until 3) {
-            for (col in 0 until 9) {
-                val num = currentTicket[row][col]
-                if (num != 0 && !calledNumbers.contains(num)) {
-                    return false
-                }
-            }
-        }
-        return true
+        val allTicketNumbers = currentTicket.flatMap { it.toList() }.filter { it != 0 }.toSet()
+        return allTicketNumbers.isNotEmpty() && markedNumbers.containsAll(allTicketNumbers)
     }
 
-    private fun generateTicket(): Array<IntArray> {
-        val ticket = Array(3) { IntArray(9) { 0 } }
-        val mask = Array(3) { BooleanArray(9) { false } }
-
-        while (true) {
-            for (r in 0 until 3) {
-                mask[r].fill(false)
-            }
-
-            for (r in 0 until 3) {
-                val cols = (0 until 9).toMutableList()
-                cols.shuffle()
-                for (i in 0 until 5) {
-                    mask[r][cols[i]] = true
-                }
-            }
-
-            var valid = true
-            for (c in 0 until 9) {
-                if (!mask[0][c] && !mask[1][c] && !mask[2][c]) {
-                    valid = false
-                    break
-                }
-            }
-            if (valid) break
-        }
-
-        for (col in 0 until 9) {
-            val start = if (col == 0) 1 else col * 10
-            val end = if (col == 8) 90 else (col * 10) + 9
-            var count = 0
-            for (r in 0 until 3) {
-                if (mask[r][col]) count++
-            }
-
-            val availableNumbers = (start..end).toMutableList()
-            availableNumbers.shuffle()
-            val selected = availableNumbers.take(count).sorted()
-
-            var idx = 0
-            for (r in 0 until 3) {
-                if (mask[r][col]) {
-                    ticket[r][col] = selected[idx++]
-                }
-            }
-        }
-
-        return ticket
-    }
-
-    private fun displayTicket(ticket: Array<IntArray>, grid: GridLayout) {
-        grid.removeAllViews()
-        grid.setBackgroundColor(Color.TRANSPARENT)
-
+    /**
+     * Renders the Tambola ticket in the GridLayout.
+     */
+    private fun displayTicket() {
+        gridTicket.removeAllViews()
         for (row in 0 until 3) {
             for (col in 0 until 9) {
-
-                val value = ticket[row][col]
+                val value = currentTicket[row][col]
                 val tv = TextView(this)
-
                 val params = GridLayout.LayoutParams().apply {
                     width = 0
                     height = GridLayout.LayoutParams.WRAP_CONTENT
@@ -360,7 +318,6 @@ class PlayerActivity : AppCompatActivity() {
                     rowSpec = GridLayout.spec(row)
                     setMargins(6, 6, 6, 6)
                 }
-
                 tv.layoutParams = params
                 tv.gravity = Gravity.CENTER
                 tv.setPadding(4, 28, 4, 28)
@@ -369,42 +326,42 @@ class PlayerActivity : AppCompatActivity() {
 
                 if (value != 0) {
                     tv.text = value.toString()
+                    val isCalled = calledNumbers.contains(value)
                     val isMarked = markedNumbers.contains(value)
-                    styleNumberCell(tv, isMarked)
-
-                    if (isMarked) {
-                        tv.isClickable = false
-                    } else {
-                        tv.setOnClickListener {
-                            if (calledNumbers.contains(value)) {
-                                markedNumbers.add(value)
-                                styleNumberCell(tv, true)
-                                tv.isClickable = false
-                            } else {
-                                Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
-                            }
+                    styleNumberCell(tv, isCalled, isMarked)
+                    
+                    tv.setOnClickListener {
+                        if (isCalled) {
+                            val newMarkedNumbers = markedNumbers.toMutableSet()
+                            if (isMarked) newMarkedNumbers.remove(value) else newMarkedNumbers.add(value)
+                            roomCode?.let { database.child("rooms").child(it).child("markedNumbers").child(playerId!!).setValue(newMarkedNumbers.toList()) }
+                        } else {
+                            Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
                         }
                     }
-
                 } else {
                     tv.text = ""
                     styleEmptyCell(tv)
                 }
-
-                grid.addView(tv)
+                gridTicket.addView(tv)
             }
         }
     }
 
-    private fun styleNumberCell(tv: TextView, marked: Boolean) {
-        val drawable = GradientDrawable()
+    // --- Cell Styling Logic (unchanged) ---
+    private fun styleNumberCell(tv: TextView, isCalled: Boolean, isMarked: Boolean) {
+         val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.RECTANGLE
         drawable.cornerRadius = 16f
         
-        if (marked) {
-            drawable.setColor(Color.parseColor("#4CAF50"))
-            drawable.setStroke(2, Color.parseColor("#388E3C"))
+        if (isMarked) {
+            drawable.setColor(Color.parseColor("#4CAF50")) // Green
+            drawable.setStroke(4, Color.parseColor("#388E3C"))
             tv.setTextColor(Color.WHITE)
+//        } else if (isCalled) {
+//            drawable.setColor(Color.parseColor("#FFFF00")) // Yellow
+//            drawable.setStroke(2, Color.parseColor("#FBC02D"))
+//            tv.setTextColor(Color.BLACK)
         } else {
             drawable.setColor(Color.WHITE)
             drawable.setStroke(2, Color.parseColor("#BDBDBD"))
@@ -413,19 +370,14 @@ class PlayerActivity : AppCompatActivity() {
         
         tv.background = drawable
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            tv.elevation = if (marked) 2f else 6f
+            tv.elevation = if (isMarked) 2f else 6f
         }
     }
-
     private fun styleEmptyCell(tv: TextView) {
-        val drawable = GradientDrawable()
+         val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.RECTANGLE
         drawable.cornerRadius = 16f
         drawable.setColor(Color.parseColor("#E0E0E0"))
-        
         tv.background = drawable
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            tv.elevation = 0f
-        }
     }
 }

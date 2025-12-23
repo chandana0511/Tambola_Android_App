@@ -27,8 +27,6 @@ class RoomJoinActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_join)
 
-        //database = FirebaseDatabase.getInstance().reference
-        // Explicitly tell the app to look at your Asia Southeast server
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
         
         editTexts[0] = findViewById(R.id.etDigit1)
@@ -67,12 +65,10 @@ class RoomJoinActivity : AppCompatActivity() {
         val currentUser = FirebaseAuth.getInstance().currentUser
         val email = currentUser?.email ?: "User"
 
-        // Add user email as a disabled item (header)
         popup.menu.add(0, 0, 0, email).apply {
             isEnabled = false
         }
 
-        // Add Logout option
         popup.menu.add(0, 1, 1, "Logout")
 
         popup.setOnMenuItemClickListener { item ->
@@ -105,8 +101,7 @@ class RoomJoinActivity : AppCompatActivity() {
             return
         }
 
-        // Extract prefix from email
-        val email = currentUser?.email
+        val email = currentUser.email
         val displayName = if (!email.isNullOrEmpty() && email.contains("@")) {
             email.substringBefore("@")
         } else {
@@ -123,24 +118,23 @@ class RoomJoinActivity : AppCompatActivity() {
         }.addOnFailureListener {
             tvError.text = "Network Error. Please try again."
             tvError.visibility = View.VISIBLE
-            Toast.makeText(this@RoomJoinActivity, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun joinRoom(code: String, userId: String, displayName: String) {
-        database.child("rooms").child(code).child("players").child(userId).setValue(true)
+        database.child("rooms").child(code).child("tickets").child(userId).setValue(true)
             .addOnSuccessListener {
                 tvError.visibility = View.GONE
                 val intent = Intent(this@RoomJoinActivity, PlayerActivity::class.java)
                 intent.putExtra("ROOM_CODE", code)
-                intent.putExtra("PLAYER_ID", displayName) // Pass display name instead of raw UID
+                intent.putExtra("PLAYER_ID", userId) // Pass UID
+                intent.putExtra("DISPLAY_NAME", displayName) // Pass display name
                 startActivity(intent)
                 finish()
             }
             .addOnFailureListener {
                 tvError.text = "Failed to join room."
                 tvError.visibility = View.VISIBLE
-                Toast.makeText(this@RoomJoinActivity, "Failed to join: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -160,7 +154,7 @@ class RoomJoinActivity : AppCompatActivity() {
                 if (keyCode == KeyEvent.KEYCODE_DEL && event.action == KeyEvent.ACTION_DOWN) {
                     if (editTexts[i]?.text.isNullOrEmpty() && i > 0) {
                         editTexts[i - 1]?.requestFocus()
-                        editTexts[i - 1]?.setText("") // Clear previous digit too
+                        editTexts[i - 1]?.setText("")
                         return@setOnKeyListener true
                     }
                 }

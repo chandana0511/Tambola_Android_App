@@ -1,40 +1,45 @@
 package com.example.tambola
 
-import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
 import android.widget.Button
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.card.MaterialCardView
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import kotlin.random.Random
 
 class HostActivity : AppCompatActivity() {
+    // A set to hold the numbers that have been called during the game.
     private val calledNumbersSet = mutableSetOf<Int>()
+    // A list of numbers that are still available to be called (1-90).
     private var availableNumbers = (1..90).toMutableList()
+    // A complete list of all numbers (1-90) for display purposes.
     private val allNumbersDisplay = (1..90).toList()
 
+    // UI elements
     private lateinit var tvCurrentNumber: TextView
     private lateinit var btnCallNumber: Button
     private lateinit var btnEndGame: Button
     private lateinit var btnResetGame: Button
     private lateinit var rvNumbers: RecyclerView
     private lateinit var numbersAdapter: NumbersAdapter
+    private lateinit var tvRoomCode: TextView
+    private lateinit var cardRoomCode: MaterialCardView
 
+    // Firebase database reference and current room code.
     private lateinit var database: DatabaseReference
     private var roomCode: String? = null
 
+    // A map to store the winners of different claim types.
     private val winnersList = mutableMapOf<String, String>()
 
     private lateinit var winnerAnimationManager: WinnerAnimationManager
@@ -43,135 +48,238 @@ class HostActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_host)
 
+        // Initialize Firebase and get the room code from the intent.
         roomCode = intent.getStringExtra("ROOM_CODE")
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
 
+        // Initialize UI components.
         tvCurrentNumber = findViewById(R.id.tvCurrentNumber)
         btnCallNumber = findViewById(R.id.btnCallNumber)
         btnEndGame = findViewById(R.id.btnEndGame)
         btnResetGame = findViewById(R.id.btnResetGame)
         rvNumbers = findViewById(R.id.rvNumbers)
+        tvRoomCode = findViewById(R.id.tvRoomCode)
+        //cardRoomCode = findViewById(R.id.cardRoomCode)
+
+        roomCode?.let {
+            tvRoomCode.text = " $it"
+        }
 
         val rootView = findViewById<View>(android.R.id.content)
-        val gameUiViews = listOf<View>(
-            findViewById(R.id.tvHostTitle),
-            findViewById(R.id.cardCurrentNumber),
-            findViewById(R.id.btnCallNumber),
-            findViewById(R.id.rvNumbers),
-            findViewById(R.id.linearLayoutButtons)
-        )
+        val gameUiViews = listOf<View>(findViewById(R.id.tvHostTitle), findViewById(R.id.cardCurrentNumber), findViewById(R.id.btnCallNumber), findViewById(R.id.rvNumbers), findViewById(R.id.linearLayoutButtons))
         winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
 
         btnEndGame.isEnabled = false
 
         setupRecyclerView()
-        listenForClaims()
+        listenForGameChanges()
 
-        btnCallNumber.setOnClickListener {
-            callNextNumber()
-        }
-
-        btnEndGame.setOnClickListener {
-            endGame()
-        }
-
-        btnResetGame.setOnClickListener {
-            resetGame()
-        }
+        // Set click listeners for the host's action buttons.
+        btnCallNumber.setOnClickListener { callNextNumber() }
+        btnEndGame.setOnClickListener { endGame() }
+        btnResetGame.setOnClickListener { resetGame() }
     }
 
-    private fun listenForClaims() {
+    /**
+     * Sets up listeners for real-time updates from Firebase for claims and called numbers.
+     */
+    private fun listenForGameChanges() {
         roomCode?.let { code ->
-            database.child("rooms").child(code).child("claims")
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        winnersList.clear()
-                        for (child in snapshot.children) {
-                            val claimType = child.key
-                            val winnerId = child.value.toString()
-                            if (claimType != null) {
-                                winnersList[claimType] = winnerId
-                            }
-                        }
+            val roomRef = database.child("rooms").child(code)
 
-                        if (winnersList.containsKey("Full House")) {
-                            if (btnCallNumber.isEnabled) {
-                                Toast.makeText(this@HostActivity, "Full House has been successfully claimed and verified", Toast.LENGTH_LONG).show()
-                                btnEndGame.isEnabled = true
-                                btnCallNumber.isEnabled = false
-                            }
-                        }
+            // Listener for claim submissions from players.
+            roomRef.child("claims").addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    winnersList.clear()
+                    snapshot.children.forEach { child ->
+                        winnersList[child.key!!] = child.value.toString()
                     }
+                    // If a "Full House" is claimed, enable the End Game button.
+                    if (winnersList.containsKey("Full House")) {
+                        btnEndGame.isEnabled = true
+                        btnCallNumber.isEnabled = false
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    Toast.makeText(this@HostActivity, "Error listening for claims: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
 
-                    override fun onCancelled(error: DatabaseError) {
-                        // Handle error
+            // Listener for the list of called numbers.
+            roomRef.child("calledNumbers").addValueEventListener(object: ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    calledNumbersSet.clear()
+                    snapshot.children.mapNotNullTo(calledNumbersSet) { it.getValue(Int::class.java) }
+                    availableNumbers = (1..90).filter { !calledNumbersSet.contains(it) }.toMutableList()
+                    numbersAdapter.notifyDataSetChanged()
+
+                    val lastNumber = calledNumbersSet.lastOrNull()
+                    if (lastNumber != null && lastNumber != 0) {
+                        tvCurrentNumber.text = lastNumber.toString()
+                    } else {
+                        tvCurrentNumber.text = "Start"
                     }
-                })
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    Toast.makeText(this@HostActivity, "Error listening for numbers: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
         }
     }
 
+    /**
+     * Initializes the RecyclerView to display the Tambola number board.
+     */
     private fun setupRecyclerView() {
         numbersAdapter = NumbersAdapter(allNumbersDisplay, calledNumbersSet)
         rvNumbers.layoutManager = GridLayoutManager(this, 10)
         rvNumbers.adapter = numbersAdapter
     }
 
+    /**
+     * Calls the next random number if available and updates Firebase.
+     */
     private fun callNextNumber() {
         if (availableNumbers.isNotEmpty()) {
-            val randomIndex = Random.nextInt(availableNumbers.size)
-            val number = availableNumbers.removeAt(randomIndex)
-            calledNumbersSet.add(number)
-
-            tvCurrentNumber.text = number.toString()
-
-            val position = number - 1
-            numbersAdapter.notifyItemChanged(position)
-
-            roomCode?.let { code ->
-                database.child("rooms").child(code).child("currentNumber").setValue(number)
-                database.child("rooms").child(code).child("calledNumbers").push().setValue(number)
+            val number = availableNumbers.random()
+            roomCode?.let {
+                val newCalledNumbers = calledNumbersSet.toMutableList()
+                newCalledNumbers.add(number)
+                // Atomically update the list of called numbers in Firebase.
+                database.child("rooms").child(it).child("calledNumbers").setValue(newCalledNumbers)
             }
         } else {
             tvCurrentNumber.text = "Done"
             btnCallNumber.isEnabled = false
-            roomCode?.let { code ->
-                database.child("rooms").child(code).child("status").setValue("finished")
-            }
+            // If no numbers are left, set the game status to "finished".
+            roomCode?.let { database.child("rooms").child(it).child("status").setValue("finished") }
         }
     }
 
+    /**
+     * Resets the entire game state, clears all data, and generates new tickets for all players.
+     */
     private fun resetGame() {
-        calledNumbersSet.clear()
-        availableNumbers = (1..90).toMutableList()
-        winnersList.clear()
-
-        tvCurrentNumber.text = "Start"
-        btnCallNumber.isEnabled = true
-        btnEndGame.isEnabled = false
-        numbersAdapter.notifyDataSetChanged()
-
+        cardRoomCode.visibility = View.VISIBLE
         roomCode?.let { code ->
             val roomRef = database.child("rooms").child(code)
-            roomRef.child("currentNumber").removeValue()
-            roomRef.child("calledNumbers").removeValue()
-            roomRef.child("claims").removeValue()
-            roomRef.child("status").setValue("reset").addOnSuccessListener {
-                Handler(Looper.getMainLooper()).postDelayed({
-                    roomRef.child("status").setValue("ongoing")
-                }, 1000)
+
+            // First, get a list of all players currently in the room.
+            roomRef.child("tickets").addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val playerIds = snapshot.children.mapNotNull { it.key }
+
+                    // Perform the reset by clearing all game-related data.
+                    val resetData = mapOf<String, Any?>(
+                        "calledNumbers" to listOf(0),
+                        "claims" to null,
+                        "markedNumbers" to null,
+                        "tickets" to null,
+                        "status" to "waiting",
+                        "resetVersion" to ServerValue.increment(1)
+                    )
+                    roomRef.updateChildren(resetData).addOnSuccessListener {
+                        // After the reset is successful, generate new unique tickets for all players.
+                        regenerateTicketsForPlayers(code, playerIds)
+                        Toast.makeText(this@HostActivity, "Game Reset! New tickets are being assigned.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    Toast.makeText(this@HostActivity, "Failed to get players for reset: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+
+        btnCallNumber.isEnabled = true
+        btnEndGame.isEnabled = false
+    }
+
+    /**
+     * Generates and assigns new, unique tickets to a list of player IDs after a reset.
+     * @param roomCode The code of the current room.
+     * @param playerIds The list of player IDs to generate tickets for.
+     */
+    private fun regenerateTicketsForPlayers(roomCode: String, playerIds: List<String>) {
+        val allGeneratedTickets = mutableSetOf<List<List<Int>>>()
+
+        for (playerId in playerIds) {
+            var ticket: List<List<Int>>
+            // Keep generating tickets until a unique one is found.
+            do {
+                ticket = generateTicket()
+            } while (allGeneratedTickets.contains(ticket))
+
+            allGeneratedTickets.add(ticket)
+
+            // Assign the unique ticket to the player and initialize their marked numbers.
+            database.child("rooms").child(roomCode).child("tickets").child(playerId).setValue(ticket)
+            database.child("rooms").child(roomCode).child("markedNumbers").child(playerId).setValue(listOf(0))
+        }
+    }
+
+    /**
+     * Generates a single, valid Tambola ticket.
+     * Guarantees 3 rows, 9 columns, 5 numbers per row, and at least one number per column.
+     * @return A 2D list representing the ticket.
+     */
+    private fun generateTicket(): List<List<Int>> {
+        var ticket: Array<Array<Int>>
+        var isValid: Boolean
+        do {
+            ticket = Array(3) { Array(9) { 0 } } // 3x9 grid, 0 represents an empty cell
+            val usedNumbers = mutableSetOf<Int>() // Ensure no number is used more than once on a single ticket
+            isValid = true
+
+            // Rule: Each row must have exactly 5 numbers.
+            for (row in 0 until 3) {
+                val columnsToFill = (0 until 9).shuffled().take(5)
+                for (col in columnsToFill) {
+                    val min = col * 10 + if (col == 0) 1 else 0
+                    val max = col * 10 + 9
+                    val possibleNumbers = (min..max).filter { !usedNumbers.contains(it) }
+                    if (possibleNumbers.isEmpty()) {
+                        isValid = false // Generation failed, retry
+                        break
+                    }
+                    val number = possibleNumbers.random()
+                    ticket[row][col] = number
+                    usedNumbers.add(number)
+                }
+                if (!isValid) break
+            }
+
+            if (isValid) {
+                // Rule: Each column must have at least one number.
+                for (col in 0 until 9) {
+                    if (ticket.all { row -> row[col] == 0 }) {
+                        isValid = false // Generation failed, retry
+                        break
+                    }
+                }
+            }
+        } while (!isValid)
+
+        // Rule: Numbers in each column must be sorted vertically.
+        for (col in 0..8) {
+            val colValues = ticket.map { it[col] }.filter { it != 0 }.sorted()
+            var valueIndex = 0
+            for (row in 0..2) {
+                if (ticket[row][col] != 0) {
+                    ticket[row][col] = colValues[valueIndex++]
+                }
             }
         }
 
-        Toast.makeText(this, "Game Reset!", Toast.LENGTH_SHORT).show()
+        return ticket.map { it.toList() }
     }
 
-    private fun endGame() {
-        roomCode?.let { code ->
-            database.child("rooms").child(code).child("status").setValue("finished")
-        }
 
-        winnerAnimationManager.startWinnerSequence(winnersList) {
-            finish()
-        }
+    /**
+     * Ends the game, sets the status to "finished", and shows the winner animation.
+     */
+    private fun endGame() {
+        cardRoomCode.visibility = View.GONE
+        roomCode?.let { database.child("rooms").child(it).child("status").setValue("finished") }
+        winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
     }
 }

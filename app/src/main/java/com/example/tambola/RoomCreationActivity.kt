@@ -35,8 +35,6 @@ class RoomCreationActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_room_creation)
 
-        // 1. Initialize Firebase with the explicit Asia-Southeast URL
-        // We use .reference to get the root DatabaseReference
         try {
             database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
         } catch (e: Exception) {
@@ -44,7 +42,6 @@ class RoomCreationActivity : AppCompatActivity() {
             Toast.makeText(this, "Database Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
-        // 2. Initialize Views
         btnCreateRoom = findViewById(R.id.btnCreateRoom)
         layoutRoomDetails = findViewById(R.id.layoutRoomDetails)
         tvRoomCode = findViewById(R.id.tvRoomCode)
@@ -54,15 +51,11 @@ class RoomCreationActivity : AppCompatActivity() {
 
         setupProfileIcon()
 
-        btnCreateRoom.setOnClickListener {
-            createRoom()
-        }
-
-        btnShare.setOnClickListener {
-            shareRoomCode()
-        }
+        btnCreateRoom.setOnClickListener { createRoom() }
+        btnShare.setOnClickListener { shareRoomCode() }
 
         btnStartGame.setOnClickListener {
+            currentRoomCode?.let { database.child("rooms").child(it).child("status").setValue("running") }
             val intent = Intent(this, HostActivity::class.java)
             intent.putExtra("ROOM_CODE", currentRoomCode)
             startActivity(intent)
@@ -72,9 +65,7 @@ class RoomCreationActivity : AppCompatActivity() {
 
     private fun setupProfileIcon() {
         val ivProfile = findViewById<ImageView>(R.id.ivProfile)
-        ivProfile.setOnClickListener { view ->
-            showProfileMenu(view)
-        }
+        ivProfile.setOnClickListener { view -> showProfileMenu(view) }
     }
 
     private fun showProfileMenu(view: View) {
@@ -89,9 +80,7 @@ class RoomCreationActivity : AppCompatActivity() {
             if (item.itemId == 1) {
                 logout()
                 true
-            } else {
-                false
-            }
+            } else false
         }
         popup.show()
     }
@@ -105,56 +94,104 @@ class RoomCreationActivity : AppCompatActivity() {
     }
 
     private fun createRoom() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
-        if (userId == null) {
-            Toast.makeText(this, "User not authenticated", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val roomCode = Random.nextInt(100000, 999999).toString()
         currentRoomCode = roomCode
 
-        // Prepare data
         val roomData = mapOf(
             "status" to "waiting",
             "hostId" to userId,
+            "resetVersion" to 1,
+            "calledNumbers" to listOf(0),
+            "tickets" to emptyMap<String, Any>(),
+            "markedNumbers" to emptyMap<String, Any>(),
+            "claims" to emptyMap<String, Any>(),
             "timestamp" to System.currentTimeMillis()
         )
 
-        Log.d("FirebaseCheck", "Attempting to write to: rooms/$roomCode")
-
-        // 3. Write to Database
-        database.child("rooms").child(roomCode).setValue(roomData)
-            .addOnSuccessListener {
-                // SUCCESS LOGIC
-                Log.d("FirebaseCheck", "SUCCESS! Room created at rooms/$roomCode")
-
-                tvRoomCode.text = roomCode
-                btnCreateRoom.visibility = View.GONE
-                layoutRoomDetails.visibility = View.VISIBLE
-
-                listenForPlayers(roomCode)
-            }
-            .addOnFailureListener { e ->
-                // FAILURE LOGIC
-                Log.e("FirebaseCheck", "FAILURE: ${e.message}")
-                Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
-            }
+        database.child("rooms").child(roomCode).setValue(roomData).addOnSuccessListener {
+            tvRoomCode.text = roomCode
+            btnCreateRoom.visibility = View.GONE
+            layoutRoomDetails.visibility = View.VISIBLE
+            listenForPlayers(roomCode)
+        }.addOnFailureListener { e ->
+            Toast.makeText(this, "Failed to create room: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun listenForPlayers(roomCode: String) {
-        database.child("rooms").child(roomCode).child("players")
-            .addValueEventListener(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val count = snapshot.childrenCount
-                    tvPlayerCount.text = "Players Joined: $count"
-                }
+        database.child("rooms").child(roomCode).child("tickets").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val count = snapshot.childrenCount
+                tvPlayerCount.text = "Players Joined: $count"
 
-                override fun onCancelled(error: DatabaseError) {
-                    Log.e("FirebaseCheck", "Listener Cancelled: ${error.message}")
+                snapshot.children.forEach { playerSnapshot ->
+                    val playerId = playerSnapshot.key
+                    val needsTicket = playerSnapshot.getValue(true) is Boolean
+
+                    if (playerId != null && needsTicket) {
+                        generateAndAssignTicketForPlayer(roomCode, playerId)
+                    }
                 }
-            })
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("FirebaseCheck", "Listener Cancelled: ${error.message}")
+            }
+        })
+    }
+
+    private fun generateAndAssignTicketForPlayer(roomCode: String, playerId: String) {
+        val ticket = generateTicket()
+        database.child("rooms").child(roomCode).child("tickets").child(playerId).setValue(ticket)
+        database.child("rooms").child(roomCode).child("markedNumbers").child(playerId).setValue(listOf(0))
+    }
+
+    private fun generateTicket(): List<List<Int>> {
+        var ticket: Array<Array<Int>>
+        var isValid: Boolean
+        do {
+            ticket = Array(3) { Array(9) { 0 } }
+            val usedNumbers = mutableSetOf<Int>()
+            isValid = true
+
+            for (row in 0 until 3) {
+                val columns = (0 until 9).shuffled().take(5)
+                for (col in columns) {
+                    val min = col * 10 + 1
+                    val max = if (col == 8) 90 else col * 10 + 10
+                    val possibleNumbers = (min..max).filter { !usedNumbers.contains(it) }
+                    if (possibleNumbers.isEmpty()) {
+                        isValid = false
+                        break
+                    }
+                    val number = possibleNumbers.random()
+                    ticket[row][col] = number
+                    usedNumbers.add(number)
+                }
+                if (!isValid) break
+            }
+
+            if (isValid) {
+                for (col in 0 until 9) {
+                    if (ticket.all { row -> row[col] == 0 }) {
+                        isValid = false
+                        break
+                    }
+                }
+            }
+        } while (!isValid)
+
+        for (col in 0..8) {
+            val colValues = ticket.map { it[col] }.filter { it != 0 }.sorted()
+            var valueIndex = 0
+            for (row in 0..2) {
+                if (ticket[row][col] != 0) {
+                    ticket[row][col] = colValues[valueIndex++]
+                }
+            }
+        }
+
+        return ticket.map { it.toList() }
     }
 
     private fun shareRoomCode() {
