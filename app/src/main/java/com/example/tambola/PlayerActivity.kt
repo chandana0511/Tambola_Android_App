@@ -332,9 +332,11 @@ class PlayerActivity : AppCompatActivity() {
                     
                     tv.setOnClickListener {
                         if (isCalled) {
-                            val newMarkedNumbers = markedNumbers.toMutableSet()
-                            if (isMarked) newMarkedNumbers.remove(value) else newMarkedNumbers.add(value)
-                            roomCode?.let { database.child("rooms").child(it).child("markedNumbers").child(playerId!!).setValue(newMarkedNumbers.toList()) }
+                            if (!isMarked) { // Only add if not already marked
+                                val newMarkedNumbers = markedNumbers.toMutableSet()
+                                newMarkedNumbers.add(value)
+                                roomCode?.let { database.child("rooms").child(it).child("markedNumbers").child(playerId!!).setValue(newMarkedNumbers.toList()) }
+                            }
                         } else {
                             Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
                         }

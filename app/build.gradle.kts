@@ -56,4 +56,7 @@ dependencies {
 
     // Lottie
     implementation("com.airbnb.android:lottie:6.1.0")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

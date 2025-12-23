@@ -9,6 +9,7 @@
     android:clickable="true"
     android:focusable="true"
     android:visibility="gone"
+    android:elevation="12dp"
     tools:visibility="visible">
 
     <!-- Lottie Animation View -->

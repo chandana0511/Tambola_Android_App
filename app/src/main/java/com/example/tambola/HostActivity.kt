@@ -6,6 +6,7 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
@@ -15,6 +16,9 @@ import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 class HostActivity : AppCompatActivity() {
@@ -33,7 +37,6 @@ class HostActivity : AppCompatActivity() {
     private lateinit var rvNumbers: RecyclerView
     private lateinit var numbersAdapter: NumbersAdapter
     private lateinit var tvRoomCode: TextView
-    private lateinit var cardRoomCode: MaterialCardView
 
     // Firebase database reference and current room code.
     private lateinit var database: DatabaseReference
@@ -59,7 +62,6 @@ class HostActivity : AppCompatActivity() {
         btnResetGame = findViewById(R.id.btnResetGame)
         rvNumbers = findViewById(R.id.rvNumbers)
         tvRoomCode = findViewById(R.id.tvRoomCode)
-        //cardRoomCode = findViewById(R.id.cardRoomCode)
 
         roomCode?.let {
             tvRoomCode.text = " $it"
@@ -160,7 +162,6 @@ class HostActivity : AppCompatActivity() {
      * Resets the entire game state, clears all data, and generates new tickets for all players.
      */
     private fun resetGame() {
-        cardRoomCode.visibility = View.VISIBLE
         roomCode?.let { code ->
             val roomRef = database.child("rooms").child(code)
 
@@ -179,9 +180,11 @@ class HostActivity : AppCompatActivity() {
                         "resetVersion" to ServerValue.increment(1)
                     )
                     roomRef.updateChildren(resetData).addOnSuccessListener {
-                        // After the reset is successful, generate new unique tickets for all players.
-                        regenerateTicketsForPlayers(code, playerIds)
-                        Toast.makeText(this@HostActivity, "Game Reset! New tickets are being assigned.", Toast.LENGTH_SHORT).show()
+                        // After the reset is successful, generate new unique tickets for all players in the background.
+                        lifecycleScope.launch {
+                            regenerateTicketsForPlayers(code, playerIds)
+                            Toast.makeText(this@HostActivity, "Game Reset! New tickets are being assigned.", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {
@@ -196,11 +199,13 @@ class HostActivity : AppCompatActivity() {
 
     /**
      * Generates and assigns new, unique tickets to a list of player IDs after a reset.
+     * This is a suspend function to allow it to be called from a coroutine.
      * @param roomCode The code of the current room.
      * @param playerIds The list of player IDs to generate tickets for.
      */
-    private fun regenerateTicketsForPlayers(roomCode: String, playerIds: List<String>) {
+    private suspend fun regenerateTicketsForPlayers(roomCode: String, playerIds: List<String>) = withContext(Dispatchers.IO) {
         val allGeneratedTickets = mutableSetOf<List<List<Int>>>()
+        val ticketsToAssign = mutableMapOf<String, List<List<Int>>>()
 
         for (playerId in playerIds) {
             var ticket: List<List<Int>>
@@ -210,12 +215,18 @@ class HostActivity : AppCompatActivity() {
             } while (allGeneratedTickets.contains(ticket))
 
             allGeneratedTickets.add(ticket)
+            ticketsToAssign[playerId] = ticket
+        }
 
-            // Assign the unique ticket to the player and initialize their marked numbers.
-            database.child("rooms").child(roomCode).child("tickets").child(playerId).setValue(ticket)
-            database.child("rooms").child(roomCode).child("markedNumbers").child(playerId).setValue(listOf(0))
+        withContext(Dispatchers.Main) {
+            for ((playerId, ticket) in ticketsToAssign) {
+                // Assign the unique ticket to the player and initialize their marked numbers.
+                database.child("rooms").child(roomCode).child("tickets").child(playerId).setValue(ticket)
+                database.child("rooms").child(roomCode).child("markedNumbers").child(playerId).setValue(listOf(0))
+            }
         }
     }
+
 
     /**
      * Generates a single, valid Tambola ticket.
@@ -234,9 +245,10 @@ class HostActivity : AppCompatActivity() {
             for (row in 0 until 3) {
                 val columnsToFill = (0 until 9).shuffled().take(5)
                 for (col in columnsToFill) {
-                    val min = col * 10 + if (col == 0) 1 else 0
-                    val max = col * 10 + 9
+                    val min = col * 10 + 1
+                    val max = if (col == 8) 90 else col * 10 + 10
                     val possibleNumbers = (min..max).filter { !usedNumbers.contains(it) }
+
                     if (possibleNumbers.isEmpty()) {
                         isValid = false // Generation failed, retry
                         break
@@ -278,7 +290,6 @@ class HostActivity : AppCompatActivity() {
      * Ends the game, sets the status to "finished", and shows the winner animation.
      */
     private fun endGame() {
-        cardRoomCode.visibility = View.GONE
         roomCode?.let { database.child("rooms").child(it).child("status").setValue("finished") }
         winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
     }
