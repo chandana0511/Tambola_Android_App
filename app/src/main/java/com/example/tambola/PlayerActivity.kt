@@ -11,21 +11,21 @@ import android.widget.Button
 import android.widget.GridLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
+import androidx.lifecycle.Observer
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.MutableData
 import com.google.firebase.database.Transaction
-import com.google.firebase.database.ValueEventListener
 
 class PlayerActivity : AppCompatActivity() {
 
-    private lateinit var database: DatabaseReference
+    private val viewModel: PlayerViewModel by viewModels()
     private var roomCode: String? = null
     private var playerId: String? = null
     private var displayName: String? = null
+    private lateinit var database: DatabaseReference
 
     // UI Elements
     private lateinit var tvLastCalledNumber: TextView
@@ -34,10 +34,10 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvTicketPlaceholder: TextView
 
     // Game State
-    private val markedNumbers = mutableSetOf<Int>()
-    private val calledNumbers = mutableSetOf<Int>()
-    private lateinit var currentTicket: Array<IntArray>
-    private val winnersList = mutableMapOf<String, String>()
+    private var markedNumbers = setOf<Int>()
+    private var calledNumbers = setOf<Int>()
+    private var currentTicket: Array<IntArray>? = null
+    private var winnersList = mapOf<String, String>()
     private var currentResetVersion: Long = 0
 
     // Claim Buttons
@@ -54,11 +54,11 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
-        // --- Initialization ---
         roomCode = intent.getStringExtra("ROOM_CODE")
         playerId = intent.getStringExtra("PLAYER_ID")
         displayName = intent.getStringExtra("DISPLAY_NAME")
         database = FirebaseDatabase.getInstance("https://tambola-app-2823c-default-rtdb.asia-southeast1.firebasedatabase.app").reference
+
 
         initializeViews()
 
@@ -66,9 +66,15 @@ class PlayerActivity : AppCompatActivity() {
         val gameUiViews = listOf<View>(findViewById(R.id.tvPlayerTitle), findViewById(R.id.cardPlayerCurrentNumber), findViewById(R.id.tvLastCalledNumber), findViewById(R.id.cardTicket), findViewById(R.id.btnClaimEarlyFive), findViewById(R.id.btnClaimFourCorners), findViewById(R.id.btnClaimTopLine), findViewById(R.id.btnClaimMiddleLine), findViewById(R.id.btnClaimBottomLine), findViewById(R.id.btnClaimFullHouse))
         winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
 
-        // --- Event Listeners ---
-        listenForGameUpdates()
         setupClaimButtonListeners()
+
+        if (roomCode != null && playerId != null) {
+            viewModel.init(roomCode!!, playerId!!)
+            observeViewModel()
+        } else {
+            Toast.makeText(this, "Error: Room code or Player ID is missing.", Toast.LENGTH_LONG).show()
+            finish()
+        }
     }
 
     private fun initializeViews() {
@@ -85,6 +91,59 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimFullHouse = findViewById(R.id.btnClaimFullHouse)
     }
 
+    private fun observeViewModel() {
+        viewModel.ticket.observe(this, Observer { ticket ->
+            if (ticket != null) {
+                currentTicket = ticket
+                tvTicketPlaceholder.visibility = View.GONE
+                gridTicket.visibility = View.VISIBLE
+                displayTicket()
+            } else {
+                tvTicketPlaceholder.text = "Waiting for host to assign ticket..."
+                tvTicketPlaceholder.visibility = View.VISIBLE
+                gridTicket.visibility = View.GONE
+            }
+        })
+
+        viewModel.markedNumbers.observe(this, Observer { numbers ->
+            markedNumbers = numbers
+            if (currentTicket != null) displayTicket()
+        })
+
+        viewModel.calledNumbers.observe(this, Observer { numbers ->
+            calledNumbers = numbers
+            updateCalledNumberUI()
+            if (currentTicket != null) displayTicket()
+        })
+
+        viewModel.winners.observe(this, Observer { winners ->
+            winnersList = winners
+            resetClaimButtonsUI()
+            winners.forEach { (claimType, winnerName) ->
+                disableClaimButton(claimType, winnerName)
+            }
+        })
+
+        viewModel.gameStatus.observe(this, Observer { status ->
+            if (status == "finished") {
+                winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
+            }
+        })
+
+        viewModel.resetVersion.observe(this, Observer { newVersion ->
+            if (currentResetVersion == 0L) {
+                currentResetVersion = newVersion
+            } else if (newVersion > currentResetVersion) {
+                currentResetVersion = newVersion
+                resetPlayerState()
+            }
+        })
+
+        viewModel.error.observe(this, Observer { errorMessage ->
+            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+        })
+    }
+
     private fun setupClaimButtonListeners() {
         btnClaimEarlyFive.setOnClickListener { validateClaim("Early Five") { checkEarlyFive() } }
         btnClaimFourCorners.setOnClickListener { validateClaim("Four Corners") { checkFourCorners() } }
@@ -94,122 +153,15 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimFullHouse.setOnClickListener { validateClaim("Full House") { checkFullHouse() } }
     }
 
-    /**
-     * Registers all Firebase listeners to keep the game state synchronized.
-     */
-    private fun listenForGameUpdates() {
-        if (roomCode == null || playerId == null) return
-        val roomRef = database.child("rooms").child(roomCode!!)
-
-        // Listener for the player's assigned ticket
-        roomRef.child("tickets").child(playerId!!).addValueEventListener(object: ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val ticketData = snapshot.value as? List<List<Long>>
-                if (ticketData != null) {
-                    currentTicket = ticketData.map { row -> row.map { it.toInt() }.toIntArray() }.toTypedArray()
-                    tvTicketPlaceholder.visibility = View.GONE
-                    gridTicket.visibility = View.VISIBLE
-                    displayTicket()
-                } else {
-                    tvTicketPlaceholder.text = "Waiting for host to assign ticket..."
-                    tvTicketPlaceholder.visibility = View.VISIBLE
-                    gridTicket.visibility = View.GONE
-                }
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        })
-
-        // Listener for the player's marked numbers
-        roomRef.child("markedNumbers").child(playerId!!).addValueEventListener(object: ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                markedNumbers.clear()
-                snapshot.children.mapNotNullTo(markedNumbers) { it.getValue(Int::class.java) }
-                if(::currentTicket.isInitialized) displayTicket()
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        })
-
-        // Listener for the globally called numbers
-        roomRef.child("calledNumbers").addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                calledNumbers.clear()
-                snapshot.children.mapNotNullTo(calledNumbers) { it.getValue(Int::class.java) }
-                updateCalledNumberUI()
-                if(::currentTicket.isInitialized) displayTicket()
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        })
-
-        // Listener for all claims made in the room
-        roomRef.child("claims").addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                winnersList.clear()
-                // First, re-enable all buttons
-                resetClaimButtonsUI()
-                // Then, disable the ones that have a winner
-                snapshot.children.forEach { claimSnapshot ->
-                    val claimType = claimSnapshot.key!!
-                    val winnerName = claimSnapshot.value.toString()
-                    winnersList[claimType] = winnerName
-                    disableClaimButton(claimType, winnerName)
-                }
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        })
-
-        // Listener for the overall game status
-        roomRef.child("status").addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                if (snapshot.getValue(String::class.java) == "finished") {
-                    winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
-                }
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        })
-
-        // *** The key listener for handling game resets ***
-        roomRef.child("resetVersion").addValueEventListener(object : ValueEventListener {
-             override fun onDataChange(snapshot: DataSnapshot) {
-                 val newVersion = snapshot.getValue(Long::class.java) ?: 1
-                 if (currentResetVersion == 0L) { // On initial load
-                     currentResetVersion = newVersion
-                 } else if (newVersion > currentResetVersion) { // If host has incremented the version
-                     currentResetVersion = newVersion
-                     resetPlayerState() // Trigger the safe reset
-                 }
-             }
-             override fun onCancelled(error: DatabaseError) {}
-         })
-    }
-
-    /**
-     * Safely resets the player's state without recreating the Activity.
-     * This avoids state loss and provides a much smoother user experience.
-     */
     private fun resetPlayerState() {
         Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_LONG).show()
-
-        // 1. Clear local state variables
-        markedNumbers.clear()
-        calledNumbers.clear()
-        winnersList.clear()
-        // Note: currentTicket will be overwritten by the Firebase listener, so no need to clear it here.
-
-        // 2. Reset the UI to its initial state
-        updateCalledNumberUI() // Clears the called number display
-        resetClaimButtonsUI() // Re-enables all claim buttons
-
-        // 3. Re-display the ticket. The `listenForGameUpdates` listeners for tickets,
-        // markedNumbers, and calledNumbers will automatically fetch the new data and
-        // call `displayTicket()` to refresh the UI.
-        if (::currentTicket.isInitialized) {
-            displayTicket() 
+        updateCalledNumberUI() 
+        resetClaimButtonsUI()
+        if (currentTicket != null) {
+            displayTicket()
         }
     }
 
-    /**
-     * Resets the claim buttons to their default, enabled state.
-     */
     private fun resetClaimButtonsUI() {
         btnClaimEarlyFive.isEnabled = true
         btnClaimEarlyFive.text = "Early Five"
@@ -225,9 +177,6 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimFullHouse.text = "Full House"
     }
 
-    /**
-     * Updates the UI elements that display the last called number.
-     */
     private fun updateCalledNumberUI() {
         val lastNumber = calledNumbers.lastOrNull()
         if (lastNumber != null && lastNumber != 0) {
@@ -256,7 +205,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun validateClaim(claimName: String, validationCheck: () -> Boolean) {
-        if (!::currentTicket.isInitialized) {
+        if (currentTicket == null) {
              Toast.makeText(this, "Ticket not loaded yet.", Toast.LENGTH_SHORT).show()
              return
         }
@@ -270,7 +219,7 @@ class PlayerActivity : AppCompatActivity() {
                              Transaction.success(currentData)
                          } else Transaction.abort()
                      }
-                     override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
+                     override fun onComplete(error: com.google.firebase.database.DatabaseError?, committed: Boolean, currentData: com.google.firebase.database.DataSnapshot?) {
                          if (committed) Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_LONG).show()
                          else Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
                      }
@@ -282,34 +231,35 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     // --- Claim Validation Logic ---
-    private fun checkEarlyFive(): Boolean = markedNumbers.intersect(currentTicket.flatMap { it.toList() }.toSet()).size >= 5
-    
+    private fun checkEarlyFive(): Boolean = (currentTicket?.flatMap { it.toList() }?.toSet()?.let { markedNumbers.intersect(it) }?.size ?: 0) >= 5
+
     private fun checkFourCorners(): Boolean {
-        val topRow = currentTicket[0].filter { it != 0 }
-        val bottomRow = currentTicket[2].filter { it != 0 }
+        if (currentTicket == null) return false
+        val topRow = currentTicket!![0].filter { it != 0 }
+        val bottomRow = currentTicket!![2].filter { it != 0 }
         if (topRow.isEmpty() || bottomRow.isEmpty()) return false
         val corners = setOf(topRow.first(), topRow.last(), bottomRow.first(), bottomRow.last())
         return markedNumbers.containsAll(corners)
     }
 
     private fun checkLine(rowIndex: Int): Boolean {
-        val lineNumbers = currentTicket[rowIndex].filter { it != 0 }.toSet()
+        if (currentTicket == null) return false
+        val lineNumbers = currentTicket!![rowIndex].filter { it != 0 }.toSet()
         return lineNumbers.isNotEmpty() && markedNumbers.containsAll(lineNumbers)
     }
 
     private fun checkFullHouse(): Boolean {
-        val allTicketNumbers = currentTicket.flatMap { it.toList() }.filter { it != 0 }.toSet()
+        if (currentTicket == null) return false
+        val allTicketNumbers = currentTicket!!.flatMap { it.toList() }.filter { it != 0 }.toSet()
         return allTicketNumbers.isNotEmpty() && markedNumbers.containsAll(allTicketNumbers)
     }
 
-    /**
-     * Renders the Tambola ticket in the GridLayout.
-     */
     private fun displayTicket() {
         gridTicket.removeAllViews()
+        if (currentTicket == null) return
         for (row in 0 until 3) {
             for (col in 0 until 9) {
-                val value = currentTicket[row][col]
+                val value = currentTicket!![row][col]
                 val tv = TextView(this)
                 val params = GridLayout.LayoutParams().apply {
                     width = 0
@@ -329,14 +279,10 @@ class PlayerActivity : AppCompatActivity() {
                     val isCalled = calledNumbers.contains(value)
                     val isMarked = markedNumbers.contains(value)
                     styleNumberCell(tv, isCalled, isMarked)
-                    
+
                     tv.setOnClickListener {
                         if (isCalled) {
-                            if (!isMarked) { // Only add if not already marked
-                                val newMarkedNumbers = markedNumbers.toMutableSet()
-                                newMarkedNumbers.add(value)
-                                roomCode?.let { database.child("rooms").child(it).child("markedNumbers").child(playerId!!).setValue(newMarkedNumbers.toList()) }
-                            }
+                            viewModel.markNumber(value)
                         } else {
                             Toast.makeText(this@PlayerActivity, "This number has not been called yet", Toast.LENGTH_SHORT).show()
                         }
@@ -350,31 +296,27 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    // --- Cell Styling Logic (unchanged) ---
     private fun styleNumberCell(tv: TextView, isCalled: Boolean, isMarked: Boolean) {
          val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.RECTANGLE
         drawable.cornerRadius = 16f
-        
+
         if (isMarked) {
             drawable.setColor(Color.parseColor("#4CAF50")) // Green
             drawable.setStroke(4, Color.parseColor("#388E3C"))
             tv.setTextColor(Color.WHITE)
-//        } else if (isCalled) {
-//            drawable.setColor(Color.parseColor("#FFFF00")) // Yellow
-//            drawable.setStroke(2, Color.parseColor("#FBC02D"))
-//            tv.setTextColor(Color.BLACK)
         } else {
             drawable.setColor(Color.WHITE)
             drawable.setStroke(2, Color.parseColor("#BDBDBD"))
             tv.setTextColor(Color.BLACK)
         }
-        
+
         tv.background = drawable
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             tv.elevation = if (isMarked) 2f else 6f
         }
     }
+
     private fun styleEmptyCell(tv: TextView) {
          val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.RECTANGLE
