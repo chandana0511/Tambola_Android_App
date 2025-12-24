@@ -1,5 +1,6 @@
 package com.example.tambola
 
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -48,8 +49,6 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnClaimBottomLine: Button
     private lateinit var btnClaimFullHouse: Button
 
-    private lateinit var winnerAnimationManager: WinnerAnimationManager
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
@@ -61,10 +60,6 @@ class PlayerActivity : AppCompatActivity() {
 
 
         initializeViews()
-
-        val rootView = findViewById<View>(android.R.id.content)
-        val gameUiViews = listOf<View>(findViewById(R.id.tvPlayerTitle), findViewById(R.id.cardPlayerCurrentNumber), findViewById(R.id.tvLastCalledNumber), findViewById(R.id.cardTicket), findViewById(R.id.btnClaimEarlyFive), findViewById(R.id.btnClaimFourCorners), findViewById(R.id.btnClaimTopLine), findViewById(R.id.btnClaimMiddleLine), findViewById(R.id.btnClaimBottomLine), findViewById(R.id.btnClaimFullHouse))
-        winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
 
         setupClaimButtonListeners()
 
@@ -89,6 +84,8 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimMiddleLine = findViewById(R.id.btnClaimMiddleLine)
         btnClaimBottomLine = findViewById(R.id.btnClaimBottomLine)
         btnClaimFullHouse = findViewById(R.id.btnClaimFullHouse)
+
+        resetClaimButtonsUI()
     }
 
     private fun observeViewModel() {
@@ -126,7 +123,7 @@ class PlayerActivity : AppCompatActivity() {
 
         viewModel.gameStatus.observe(this, Observer { status ->
             if (status == "finished") {
-                winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
+                finish()
             }
         })
 
@@ -155,7 +152,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun resetPlayerState() {
         Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_LONG).show()
-        updateCalledNumberUI() 
+        updateCalledNumberUI()
         resetClaimButtonsUI()
         if (currentTicket != null) {
             displayTicket()
@@ -163,18 +160,15 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun resetClaimButtonsUI() {
-        btnClaimEarlyFive.isEnabled = true
-        btnClaimEarlyFive.text = "Early Five"
-        btnClaimFourCorners.isEnabled = true
-        btnClaimFourCorners.text = "Four Corners"
-        btnClaimTopLine.isEnabled = true
-        btnClaimTopLine.text = "Top Line"
-        btnClaimMiddleLine.isEnabled = true
-        btnClaimMiddleLine.text = "Middle Line"
-        btnClaimBottomLine.isEnabled = true
-        btnClaimBottomLine.text = "Bottom Line"
-        btnClaimFullHouse.isEnabled = true
-        btnClaimFullHouse.text = "Full House"
+        val buttons = listOf(btnClaimEarlyFive, btnClaimFourCorners, btnClaimTopLine, btnClaimMiddleLine, btnClaimBottomLine, btnClaimFullHouse)
+        val claimTypes = listOf("Early Five", "Four Corners", "Top Line", "Middle Line", "Bottom Line", "Full House")
+
+        buttons.forEachIndexed { index, button ->
+            button.isEnabled = true
+            button.text = claimTypes[index]
+            button.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#1D3CC7"))
+            button.setTextColor(Color.WHITE)
+        }
     }
 
     private fun updateCalledNumberUI() {
@@ -189,7 +183,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun disableClaimButton(claimType: String, winnerId: String) {
-        val button = when(claimType) {
+        val button = when (claimType) {
             "Early Five" -> btnClaimEarlyFive
             "Four Corners" -> btnClaimFourCorners
             "Top Line" -> btnClaimTopLine
@@ -201,6 +195,8 @@ class PlayerActivity : AppCompatActivity() {
         button?.let {
             it.isEnabled = false
             it.text = "$claimType($winnerId)"
+            it.setTextColor(Color.WHITE)
+            it.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#4CAF50"))
         }
     }
 
@@ -220,8 +216,11 @@ class PlayerActivity : AppCompatActivity() {
                          } else Transaction.abort()
                      }
                      override fun onComplete(error: com.google.firebase.database.DatabaseError?, committed: Boolean, currentData: com.google.firebase.database.DataSnapshot?) {
-                         if (committed) Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_LONG).show()
-                         else Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
+                         if (committed) {
+                            Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_LONG).show()
+                         } else {
+                            Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
+                         }
                      }
                  })
              }
@@ -231,7 +230,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     // --- Claim Validation Logic ---
-    private fun checkEarlyFive(): Boolean = (currentTicket?.flatMap { it.toList() }?.toSet()?.let { markedNumbers.intersect(it) }?.size ?: 0) >= 5
+    private fun checkEarlyFive(): Boolean {
+        // 1. Get the Player's Ticket Numbers: Get a simple list of all the numbers
+        // that are actually on the player's ticket, filtering out the 0s used for blank spaces.
+        if (currentTicket == null) return false
+        val ticketNumbers = currentTicket!!.flatMap { it.toList() }.filter { it != 0 }.toSet()
+
+        // 2. Find the "Valid Marked Numbers": Find the intersection of the ticket numbers
+        // and the numbers the player has marked. A number is only valid if it's both
+        // on the ticket AND has been marked by the player.
+        val validMarkedNumbers = ticketNumbers.intersect(markedNumbers)
+
+        // 3. Count and Verify: The claim is valid if the count is 5 or more.
+        return validMarkedNumbers.size >= 5
+    }
 
     private fun checkFourCorners(): Boolean {
         if (currentTicket == null) return false

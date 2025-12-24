@@ -106,70 +106,6 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!--    <ScrollView-->
-    <!--        android:layout_width="match_parent"-->
-    <!--        android:layout_height="0dp"-->
-    <!--        android:layout_marginTop="0dp"-->
-    <!--        android:layout_marginBottom="5dp"-->
-    <!--        app:layout_constraintBottom_toBottomOf="parent"-->
-    <!--        app:layout_constraintTop_toBottomOf="@id/cardTicket">-->
-
-    <!--        <GridLayout-->
-    <!--            android:layout_width="match_parent"-->
-    <!--            android:layout_height="wrap_content"-->
-    <!--            android:columnCount="1"-->
-    <!--            android:rowCount="6">-->
-
-    <!--            <Button-->
-    <!--                android:id="@+id/btnClaimEarlyFive"-->
-    <!--                android:layout_width="100dp"-->
-    <!--                android:layout_height="wrap_content"-->
-    <!--                android:layout_columnWeight="1"-->
-    <!--                android:layout_margin="80dp"-->
-    <!--                android:text="Early Five" />-->
-
-    <!--            <Button-->
-    <!--                android:id="@+id/btnClaimFourCorners"-->
-    <!--                android:layout_width="100dp"-->
-    <!--                android:layout_height="wrap_content"-->
-    <!--                android:layout_columnWeight="1"-->
-    <!--                android:layout_margin="80dp"-->
-    <!--                android:text="Four Corners" />-->
-
-    <!--            <Button-->
-    <!--                android:id="@+id/btnClaimTopLine"-->
-    <!--                android:layout_width="100dp"-->
-    <!--                android:layout_height="wrap_content"-->
-    <!--                android:layout_columnWeight="1"-->
-    <!--                android:layout_margin="80dp"-->
-    <!--                android:text="Top Line" />-->
-
-    <!--            <Button-->
-    <!--                android:id="@+id/btnClaimMiddleLine"-->
-    <!--                android:layout_width="100dp"-->
-    <!--                android:layout_height="wrap_content"-->
-    <!--                android:layout_columnWeight="1"-->
-    <!--                android:layout_margin="80dp"-->
-    <!--                android:text="Middle Line" />-->
-
-    <!--            <Button-->
-    <!--                android:id="@+id/btnClaimBottomLine"-->
-    <!--                android:layout_width="100dp"-->
-    <!--                android:layout_height="wrap_content"-->
-    <!--                android:layout_columnWeight="1"-->
-    <!--                android:layout_margin="80dp"-->
-    <!--                android:text="Bottom Line" />-->
-
-    <!--            <Button-->
-    <!--                android:id="@+id/btnClaimFullHouse"-->
-    <!--                android:layout_width="100dp"-->
-    <!--                android:layout_height="wrap_content"-->
-    <!--                android:layout_columnWeight="1"-->
-    <!--                android:layout_margin="80dp"-->
-    <!--                android:text="Full House" />-->
-
-    <!--        </GridLayout>-->
-    <!--    </ScrollView>-->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -189,53 +125,56 @@
                 android:layout_width="220dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
-                android:text="Early Five" />
+                android:text="Early Five"
+                app:backgroundTint="#1D3CC7"
+                android:textColor="#FFFFFF" />
 
             <Button
                 android:id="@+id/btnClaimFourCorners"
                 android:layout_width="220dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
-                android:text="Four Corners" />
+                android:text="Four Corners"
+                app:backgroundTint="#1D3CC7"
+                android:textColor="#FFFFFF" />
 
             <Button
                 android:id="@+id/btnClaimTopLine"
                 android:layout_width="220dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
-                android:text="Top Line" />
+                android:text="Top Line"
+                app:backgroundTint="#1D3CC7"
+                android:textColor="#FFFFFF" />
 
             <Button
                 android:id="@+id/btnClaimMiddleLine"
                 android:layout_width="220dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
-                android:text="Middle Line" />
+                android:text="Middle Line"
+                app:backgroundTint="#1D3CC7"
+                android:textColor="#FFFFFF" />
 
             <Button
                 android:id="@+id/btnClaimBottomLine"
                 android:layout_width="220dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
-                android:text="Bottom Line" />
+                android:text="Bottom Line"
+                app:backgroundTint="#1D3CC7"
+                android:textColor="#FFFFFF" />
 
             <Button
                 android:id="@+id/btnClaimFullHouse"
                 android:layout_width="220dp"
                 android:layout_height="wrap_content"
-                android:text="Full House" />
+                android:text="Full House"
+                app:backgroundTint="#1D3CC7"
+                android:textColor="#FFFFFF" />
 
         </LinearLayout>
     </ScrollView>
 
-    <!--    <LinearLayout-->
-    <!--        android:layout_width="match_parent"-->
-    <!--        android:layout_height="wrap_content"-->
-    <!--        android:orientation="vertical"-->
-    <!--        android:padding="100dp"-->
-    <!--        tools:layout_editor_absoluteX="0dp"-->
-    <!--        tools:layout_editor_absoluteY="488dp">-->
-
-    <!--    </LinearLayout>-->
 <include layout="@layout/view_winner_overlay" />
 </androidx.constraintlayout.widget.ConstraintLayout>
