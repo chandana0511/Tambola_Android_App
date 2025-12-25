@@ -1,5 +1,6 @@
 package com.example.tambola
 
+import android.animation.Animator
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -15,6 +16,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
+import com.airbnb.lottie.LottieAnimationView
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.MutableData
@@ -33,6 +35,8 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvPlayerCurrentNumber: TextView
     private lateinit var gridTicket: GridLayout
     private lateinit var tvTicketPlaceholder: TextView
+    private lateinit var confettiAnimation: LottieAnimationView
+    private lateinit var winnerAnimationManager: WinnerAnimationManager
 
     // Game State
     private var markedNumbers = setOf<Int>()
@@ -77,6 +81,7 @@ class PlayerActivity : AppCompatActivity() {
         tvPlayerCurrentNumber = findViewById(R.id.tvPlayerCurrentNumber)
         gridTicket = findViewById(R.id.gridTicket)
         tvTicketPlaceholder = findViewById(R.id.tvTicketPlaceholder)
+        confettiAnimation = findViewById(R.id.confetti_animation)
 
         btnClaimEarlyFive = findViewById(R.id.btnClaimEarlyFive)
         btnClaimFourCorners = findViewById(R.id.btnClaimFourCorners)
@@ -84,6 +89,10 @@ class PlayerActivity : AppCompatActivity() {
         btnClaimMiddleLine = findViewById(R.id.btnClaimMiddleLine)
         btnClaimBottomLine = findViewById(R.id.btnClaimBottomLine)
         btnClaimFullHouse = findViewById(R.id.btnClaimFullHouse)
+
+        val rootView = findViewById<View>(android.R.id.content)
+        val gameUiViews = listOf<View>(findViewById(R.id.tvPlayerTitle), findViewById(R.id.cardPlayerCurrentNumber), findViewById(R.id.tvLastCalledNumber), findViewById(R.id.cardTicket), findViewById(R.id.btnClaimEarlyFive), findViewById(R.id.btnClaimFourCorners), findViewById(R.id.btnClaimTopLine), findViewById(R.id.btnClaimMiddleLine), findViewById(R.id.btnClaimBottomLine), findViewById(R.id.btnClaimFullHouse))
+        winnerAnimationManager = WinnerAnimationManager(rootView, gameUiViews)
 
         resetClaimButtonsUI()
     }
@@ -123,7 +132,7 @@ class PlayerActivity : AppCompatActivity() {
 
         viewModel.gameStatus.observe(this, Observer { status ->
             if (status == "finished") {
-                finish()
+                winnerAnimationManager.startWinnerSequence(winnersList) { finish() }
             }
         })
 
@@ -218,6 +227,7 @@ class PlayerActivity : AppCompatActivity() {
                      override fun onComplete(error: com.google.firebase.database.DatabaseError?, committed: Boolean, currentData: com.google.firebase.database.DataSnapshot?) {
                          if (committed) {
                             Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_LONG).show()
+                            playConfettiAnimation()
                          } else {
                             Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
                          }
@@ -335,5 +345,21 @@ class PlayerActivity : AppCompatActivity() {
         drawable.cornerRadius = 16f
         drawable.setColor(Color.parseColor("#E0E0E0"))
         tv.background = drawable
+    }
+
+    private fun playConfettiAnimation() {
+        confettiAnimation.visibility = View.VISIBLE
+        confettiAnimation.playAnimation()
+        confettiAnimation.addAnimatorListener(object : Animator.AnimatorListener {
+            override fun onAnimationStart(animation: Animator) {}
+
+            override fun onAnimationEnd(animation: Animator) {
+                confettiAnimation.visibility = View.GONE
+            }
+
+            override fun onAnimationCancel(animation: Animator) {}
+
+            override fun onAnimationRepeat(animation: Animator) {}
+        })
     }
 }

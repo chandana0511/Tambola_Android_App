@@ -153,8 +153,7 @@ class HostActivity : AppCompatActivity() {
         } else {
             tvCurrentNumber.text = "Done"
             btnCallNumber.isEnabled = false
-            // If no numbers are left, set the game status to "finished".
-            roomCode?.let { database.child("rooms").child(it).child("status").setValue("finished") }
+            btnEndGame.isEnabled = true
         }
     }
 

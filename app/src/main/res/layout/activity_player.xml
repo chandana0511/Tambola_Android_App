@@ -7,6 +7,20 @@
     android:background="#D9000000"
     tools:context=".PlayerActivity">
 
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/confetti_animation"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:lottie_rawRes="@raw/confetti"
+        app:lottie_autoPlay="false"
+        app:lottie_loop="false"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:clickable="false"/>
+
     <TextView
         android:id="@+id/tvPlayerTitle"
         android:layout_width="wrap_content"
