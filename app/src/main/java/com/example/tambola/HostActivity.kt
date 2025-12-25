@@ -37,6 +37,7 @@ class HostActivity : AppCompatActivity() {
     private lateinit var rvNumbers: RecyclerView
     private lateinit var numbersAdapter: NumbersAdapter
     private lateinit var tvRoomCode: TextView
+    private lateinit var tvPlayerCount: TextView
 
     // Firebase database reference and current room code.
     private lateinit var database: DatabaseReference
@@ -62,6 +63,7 @@ class HostActivity : AppCompatActivity() {
         btnResetGame = findViewById(R.id.btnResetGame)
         rvNumbers = findViewById(R.id.rvNumbers)
         tvRoomCode = findViewById(R.id.tvRoomCode)
+        tvPlayerCount = findViewById(R.id.tvPlayerCount)
 
         roomCode?.let {
             tvRoomCode.text = " $it"
@@ -92,10 +94,25 @@ class HostActivity : AppCompatActivity() {
             // Listener for claim submissions from players.
             roomRef.child("claims").addValueEventListener(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    winnersList.clear()
-                    snapshot.children.forEach { child ->
-                        winnersList[child.key!!] = child.value.toString()
+                    val newClaims = mutableMapOf<String, String>()
+                    snapshot.children.forEach {
+                        val claimName = it.key
+                        val winnerName = it.value.toString()
+                        if(claimName != null) {
+                            newClaims[claimName] = winnerName
+                        }
                     }
+
+                    // Find the newly added claims and show a toast for each
+                    val addedClaims = newClaims.keys - winnersList.keys
+                    for (claimName in addedClaims) {
+                        val winnerName = newClaims[claimName]
+                        Toast.makeText(this@HostActivity, "$winnerName won $claimName", Toast.LENGTH_LONG).show()
+                    }
+
+                    winnersList.clear()
+                    winnersList.putAll(newClaims)
+
                     // If a "Full House" is claimed, enable the End Game button.
                     if (winnersList.containsKey("Full House")) {
                         btnEndGame.isEnabled = true
@@ -124,6 +141,18 @@ class HostActivity : AppCompatActivity() {
                 }
                 override fun onCancelled(error: DatabaseError) {
                     Toast.makeText(this@HostActivity, "Error listening for numbers: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+
+            // Listener for player count
+            roomRef.child("tickets").addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val playerCount = snapshot.childrenCount
+                    tvPlayerCount.text = "Players: $playerCount"
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Toast.makeText(this@HostActivity, "Error listening for player count: ${error.message}", Toast.LENGTH_SHORT).show()
                 }
             })
         }

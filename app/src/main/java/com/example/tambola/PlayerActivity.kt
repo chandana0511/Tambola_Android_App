@@ -160,7 +160,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun resetPlayerState() {
-        Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "The host has reset the game!", Toast.LENGTH_SHORT).show()
         updateCalledNumberUI()
         resetClaimButtonsUI()
         if (currentTicket != null) {
@@ -226,7 +226,7 @@ class PlayerActivity : AppCompatActivity() {
                      }
                      override fun onComplete(error: com.google.firebase.database.DatabaseError?, committed: Boolean, currentData: com.google.firebase.database.DataSnapshot?) {
                          if (committed) {
-                            Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@PlayerActivity, "Valid $claimName! Claim submitted.", Toast.LENGTH_SHORT).show()
                             playConfettiAnimation()
                          } else {
                             Toast.makeText(this@PlayerActivity, "Too late! $claimName already claimed.", Toast.LENGTH_SHORT).show()
