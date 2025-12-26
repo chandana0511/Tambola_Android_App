@@ -6,6 +6,7 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -38,6 +39,12 @@ class HostActivity : AppCompatActivity() {
     private lateinit var numbersAdapter: NumbersAdapter
     private lateinit var tvRoomCode: TextView
     private lateinit var tvPlayerCount: TextView
+    private lateinit var btnClaimEarlyFive: Button
+    private lateinit var btnClaimFourCorners: Button
+    private lateinit var btnClaimTopLine: Button
+    private lateinit var btnClaimMiddleLine: Button
+    private lateinit var btnClaimBottomLine: Button
+    private lateinit var btnClaimFullHouse: Button
 
     // Firebase database reference and current room code.
     private lateinit var database: DatabaseReference
@@ -64,6 +71,12 @@ class HostActivity : AppCompatActivity() {
         rvNumbers = findViewById(R.id.rvNumbers)
         tvRoomCode = findViewById(R.id.tvRoomCode)
         tvPlayerCount = findViewById(R.id.tvPlayerCount)
+        btnClaimEarlyFive = findViewById(R.id.btnClaimEarlyFive)
+        btnClaimFourCorners = findViewById(R.id.btnClaimFourCorners)
+        btnClaimTopLine = findViewById(R.id.btnClaimTopLine)
+        btnClaimMiddleLine = findViewById(R.id.btnClaimMiddleLine)
+        btnClaimBottomLine = findViewById(R.id.btnClaimBottomLine)
+        btnClaimFullHouse = findViewById(R.id.btnClaimFullHouse)
 
         roomCode?.let {
             tvRoomCode.text = " $it"
@@ -97,8 +110,8 @@ class HostActivity : AppCompatActivity() {
                     val newClaims = mutableMapOf<String, String>()
                     snapshot.children.forEach {
                         val claimName = it.key
-                        val winnerName = it.value.toString()
-                        if(claimName != null) {
+                        val winnerName = it.getValue(String::class.java)
+                        if (claimName != null && winnerName != null) {
                             newClaims[claimName] = winnerName
                         }
                     }
@@ -107,7 +120,10 @@ class HostActivity : AppCompatActivity() {
                     val addedClaims = newClaims.keys - winnersList.keys
                     for (claimName in addedClaims) {
                         val winnerName = newClaims[claimName]
-                        Toast.makeText(this@HostActivity, "$winnerName won $claimName", Toast.LENGTH_LONG).show()
+                        if (winnerName != null) {
+                            Toast.makeText(this@HostActivity, "$winnerName won $claimName", Toast.LENGTH_LONG).show()
+                            updateClaimButton(claimName, winnerName)
+                        }
                     }
 
                     winnersList.clear()
@@ -120,7 +136,7 @@ class HostActivity : AppCompatActivity() {
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@HostActivity, "Error listening for claims: ${error.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@HostActivity, "Error listening for claims: " + error.message, Toast.LENGTH_SHORT).show()
                 }
             })
 
@@ -140,7 +156,7 @@ class HostActivity : AppCompatActivity() {
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@HostActivity, "Error listening for numbers: ${error.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@HostActivity, "Error listening for numbers: " + error.message, Toast.LENGTH_SHORT).show()
                 }
             })
 
@@ -152,9 +168,26 @@ class HostActivity : AppCompatActivity() {
                 }
 
                 override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@HostActivity, "Error listening for player count: ${error.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@HostActivity, "Error listening for player count: " + error.message, Toast.LENGTH_SHORT).show()
                 }
             })
+        }
+    }
+
+    private fun updateClaimButton(claimName: String, winnerName: String) {
+        val button = when (claimName) {
+            "Early Five" -> btnClaimEarlyFive
+            "Four Corners" -> btnClaimFourCorners
+            "Top Line" -> btnClaimTopLine
+            "Middle Line" -> btnClaimMiddleLine
+            "Bottom Line" -> btnClaimBottomLine
+            "Full House" -> btnClaimFullHouse
+            else -> null
+        }
+        button?.let {
+            it.text = "$claimName ($winnerName)"
+            it.isEnabled = false
+            it.backgroundTintList = ContextCompat.getColorStateList(this, R.color.success)
         }
     }
 
@@ -216,14 +249,31 @@ class HostActivity : AppCompatActivity() {
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@HostActivity, "Failed to get players for reset: ${error.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@HostActivity, "Failed to get players for reset: " + error.message, Toast.LENGTH_SHORT).show()
                 }
             })
         }
 
         btnCallNumber.isEnabled = true
         btnEndGame.isEnabled = false
+        resetClaimButtons()
     }
+
+    private fun resetButtonState(button: Button, text: String) {
+        button.text = text
+        button.isEnabled = true
+        button.backgroundTintList = ContextCompat.getColorStateList(this, R.color.primary_variant)
+    }
+
+    private fun resetClaimButtons() {
+        resetButtonState(btnClaimEarlyFive, "Early Five")
+        resetButtonState(btnClaimFourCorners, "Four Corners")
+        resetButtonState(btnClaimTopLine, "Top Line")
+        resetButtonState(btnClaimMiddleLine, "Middle Line")
+        resetButtonState(btnClaimBottomLine, "Bottom Line")
+        resetButtonState(btnClaimFullHouse, "Full House")
+    }
+
 
     /**
      * Generates and assigns new, unique tickets to a list of player IDs after a reset.
@@ -248,7 +298,7 @@ class HostActivity : AppCompatActivity() {
 
         withContext(Dispatchers.Main) {
             for ((playerId, ticket) in ticketsToAssign) {
-                // Assign the unique ticket to the player and initialize their marked numbers.
+                // Assign the unique.
                 database.child("rooms").child(roomCode).child("tickets").child(playerId).setValue(ticket)
                 database.child("rooms").child(roomCode).child("markedNumbers").child(playerId).setValue(listOf(0))
             }

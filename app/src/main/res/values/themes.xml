@@ -8,8 +8,7 @@
 
     <style name="App.Theme.SplashScreenApp" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/dark_grey</item>
-<!--        <item name="android:windowSplashScreenBrandingImage">@drawable/tbbg</item>-->
-        <item name="windowSplashScreenAnimatedIcon">@drawable/bpi</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/bpi_ss</item>
         <item name="postSplashScreenTheme">@style/Base.Theme.Tambola</item>
     </style>
 
