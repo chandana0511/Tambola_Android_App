@@ -61,7 +61,26 @@ class RoomCreationActivity : AppCompatActivity() {
             startActivity(intent)
             finish()
         }
+        cleanupOldRooms()
     }
+
+    private fun cleanupOldRooms() {
+        val roomsRef = database.child("rooms")
+        val twentyFourHoursAgo = System.currentTimeMillis() - 24 * 60 * 60 * 1000
+        roomsRef.orderByChild("timestamp").endAt(twentyFourHoursAgo.toDouble())
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    for (roomSnapshot in snapshot.children) {
+                        roomSnapshot.ref.removeValue()
+                    }
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("FirebaseCleanup", "Failed to clean up old rooms: ${error.message}")
+                }
+            })
+    }
+
 
     private fun setupProfileIcon() {
         val ivProfile = findViewById<ImageView>(R.id.ivProfile)

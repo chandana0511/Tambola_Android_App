@@ -5,6 +5,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -95,6 +96,12 @@ class HostActivity : AppCompatActivity() {
         btnCallNumber.setOnClickListener { callNextNumber() }
         btnEndGame.setOnClickListener { endGame() }
         btnResetGame.setOnClickListener { resetGame() }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                endGame()
+            }
+        })
     }
 
     /**
