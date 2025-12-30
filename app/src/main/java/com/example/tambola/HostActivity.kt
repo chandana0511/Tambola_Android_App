@@ -150,20 +150,50 @@ class HostActivity : AppCompatActivity() {
             // Listener for the list of called numbers.
             roomRef.child("calledNumbers").addValueEventListener(object: ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    calledNumbersSet.clear()
-                    snapshot.children.mapNotNullTo(calledNumbersSet) { it.getValue(Int::class.java) }
-                    availableNumbers = (1..90).filter { !calledNumbersSet.contains(it) }.toMutableList()
-                    numbersAdapter.notifyDataSetChanged()
+                    val newCalledNumbersList = snapshot.children.mapNotNull { it.getValue(Int::class.java) }
+                    val newCalledNumbersSet = newCalledNumbersList.toSet()
 
-                    val lastNumber = calledNumbersSet.lastOrNull()
-                    if (lastNumber != null && lastNumber != 0) {
+                    val oldCalledNumbers = calledNumbersSet.toSet()
+
+                    calledNumbersSet.clear()
+                    calledNumbersSet.addAll(newCalledNumbersSet)
+                    availableNumbers = (1..90).filter { !calledNumbersSet.contains(it) }.toMutableList()
+
+                    val addedNumbers = newCalledNumbersSet - oldCalledNumbers
+                    val removedNumbers = oldCalledNumbers - newCalledNumbersSet
+
+                    if (addedNumbers.size == 1 && removedNumbers.isEmpty()) {
+                        val number = addedNumbers.first()
+                        val position = allNumbersDisplay.indexOf(number)
+                        if (position != -1) {
+                            numbersAdapter.notifyItemChanged(position)
+                        }
+                    } else {
+                        numbersAdapter.notifyDataSetChanged()
+                    }
+
+                    val lastNumber = newCalledNumbersList.lastOrNull { it in 1..90 }
+                    if (lastNumber != null) {
                         tvCurrentNumber.text = lastNumber.toString()
                     } else {
                         tvCurrentNumber.text = "Start"
                     }
+                    
+                    // Manage button state based on game progress.
+                    if (availableNumbers.isNotEmpty() && !winnersList.containsKey("Full House")) {
+                        btnCallNumber.isEnabled = true
+                    } else {
+                        btnCallNumber.isEnabled = false
+                        if (availableNumbers.isEmpty()) {
+                            tvCurrentNumber.text = "Done"
+                            btnEndGame.isEnabled = true
+                        }
+                    }
                 }
                 override fun onCancelled(error: DatabaseError) {
                     Toast.makeText(this@HostActivity, "Error listening for numbers: " + error.message, Toast.LENGTH_SHORT).show()
+                    // Re-enable button in case of error
+                    btnCallNumber.isEnabled = true
                 }
             })
 
@@ -211,6 +241,9 @@ class HostActivity : AppCompatActivity() {
      * Calls the next random number if available and updates Firebase.
      */
     private fun callNextNumber() {
+        // Disable button to prevent rapid clicks. It will be re-enabled when the new number is processed.
+        btnCallNumber.isEnabled = false
+
         if (availableNumbers.isNotEmpty()) {
             val number = availableNumbers.random()
             roomCode?.let {
@@ -220,8 +253,8 @@ class HostActivity : AppCompatActivity() {
                 database.child("rooms").child(it).child("calledNumbers").setValue(newCalledNumbers)
             }
         } else {
+            // This case should ideally not be hit if the button is managed correctly.
             tvCurrentNumber.text = "Done"
-            btnCallNumber.isEnabled = false
             btnEndGame.isEnabled = true
         }
     }
